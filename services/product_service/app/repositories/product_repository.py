@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.products import Product
@@ -37,19 +37,19 @@ class ProductRepository:
 
         if search:
             keyword = search.strip()
-            search_terms = {keyword}
-            if len(keyword) > 1:
-                search_terms.add(keyword[:2])
-            if len(keyword) > 2:
-                search_terms.add(keyword[:3])
-
-            search_filters = []
-            for term in sorted(search_terms, key=len):
-                pattern = f"%{term}%"
-                search_filters.append(Product.name.ilike(pattern))
-                search_filters.append(Product.description.ilike(pattern))
-
-            query = query.filter(or_(*search_filters))
+            if keyword:
+                words = [w for w in keyword.split() if w]
+                word_filters = []
+                for w in words:
+                    pattern = f"%{w}%"
+                    word_filters.append(
+                        or_(
+                            Product.name.ilike(pattern),
+                            Product.description.ilike(pattern),
+                        )
+                    )
+                if word_filters:
+                    query = query.filter(and_(*word_filters))
 
         if category_id is not None:
             query = query.filter(Product.category_id == category_id)

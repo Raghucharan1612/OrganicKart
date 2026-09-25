@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.categories import CategoryResponse
+
 
 class ProductCreate(BaseModel):
     category_id: int = Field(..., gt=0)
@@ -31,6 +33,7 @@ class ProductResponse(BaseModel):
     id: int
     seller_id: int
     category_id: int
+    category: CategoryResponse | None = None
     name: str
     description: str | None = None
     price: Decimal

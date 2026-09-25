@@ -1,9 +1,8 @@
-/** Full-area loading indicator used for page-level async states. */
-export default function Spinner({ label = "Loadingâ€¦" }) {
+export default function Spinner({ label = "Loading…" }) {
   return (
-    <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-primary-700">
-      <span className="h-8 w-8 animate-spin rounded-full border-4 border-primary-100 border-t-primary-600" />
-      <span className="text-sm text-gray-500">{label}</span>
+    <div className="flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+      <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary-200 border-t-primary-600" />
+      {label && <p className="mt-3 text-xs font-semibold text-gray-500 animate-pulse">{label}</p>}
     </div>
   );
 }

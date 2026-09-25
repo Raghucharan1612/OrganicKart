@@ -25,6 +25,11 @@ class Category(Base):
         nullable=True
     )
 
+    image_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,

@@ -108,9 +108,19 @@ async def products_proxy(request: Request, path: str) -> Any:
     return await _forward_request(request, "products", f"/api/v1/products/{path}")
 
 
+@router.api_route("/products", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def products_root_proxy(request: Request) -> Any:
+    return await _forward_request(request, "products", "/api/v1/products/")
+
+
 @router.api_route("/categories/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def categories_proxy(request: Request, path: str) -> Any:
     return await _forward_request(request, "categories", f"/api/v1/categories/{path}")
+
+
+@router.api_route("/categories", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def categories_root_proxy(request: Request) -> Any:
+    return await _forward_request(request, "categories", "/api/v1/categories/")
 
 
 @router.api_route("/cart/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])

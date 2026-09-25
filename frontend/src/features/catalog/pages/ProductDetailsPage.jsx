@@ -148,23 +148,33 @@ export default function ProductDetailsPage() {
               <span className="font-medium text-red-600">Out of stock</span>
             ) : (
               <span className="font-medium text-primary-700">
-                {product.stock_quantity} {product.unit} available
+                {product.stock_quantity} units available
               </span>
             )}
           </p>
 
           {product.description && <p className="mt-5 leading-relaxed text-gray-600">{product.description}</p>}
 
-          <div className="mt-6 flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Qty</label>
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1">
-              <button type="button" className="h-8 w-8 rounded-md text-lg text-primary-700 hover:bg-primary-50" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
-                −
-              </button>
-              <span className="min-w-6 text-center text-sm font-semibold text-gray-800">{quantity}</span>
-              <button type="button" className="h-8 w-8 rounded-md text-lg text-primary-700 hover:bg-primary-50" onClick={() => setQuantity((q) => Math.min(Math.max(1, Number(product.stock_quantity || 1)), q + 1))}>
-                +
-              </button>
+          <div className="mt-6 flex flex-col gap-2 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-primary-900">Select Quantity / Weight</label>
+              <span className="text-xs font-semibold text-primary-700">
+                Total: ₹{(Number(product.price) * quantity).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1 shadow-xs">
+                <button type="button" className="h-8 w-8 rounded-md text-lg text-primary-700 hover:bg-primary-50 font-bold" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
+                  −
+                </button>
+                <span className="min-w-6 text-center text-sm font-bold text-gray-900">{quantity}</span>
+                <button type="button" className="h-8 w-8 rounded-md text-lg text-primary-700 hover:bg-primary-50 font-bold" onClick={() => setQuantity((q) => Math.min(Math.max(1, Number(product.stock_quantity || 1)), q + 1))}>
+                  +
+                </button>
+              </div>
+              <span className="text-xs text-gray-600 font-medium">
+                ({quantity} × {product.unit} = <span className="font-bold text-gray-900">{quantity * (parseInt(product.unit, 10) || 1)}{product.unit.replace(/[0-9]/g, '') || " units"}</span>)
+              </span>
             </div>
           </div>
 

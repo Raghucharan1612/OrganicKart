@@ -17,6 +17,7 @@ class CategoryService:
         category = Category(
             name=category_data.name,
             description=category_data.description,
+            image_url=category_data.image_url,
             is_active=category_data.is_active,
         )
         return CategoryRepository.create(db, category)
