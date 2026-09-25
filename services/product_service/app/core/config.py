@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./catalog.db"
     SERVICE_NAME: str = "product-service"
     SERVICE_PORT: int = 8003
-    JWT_SECRET_KEY: str = "development-secret-key-change-me"
+    JWT_SECRET_KEY: str = "replace-me-with-a-secure-secret"
     JWT_ALGORITHM: str = "HS256"
     
     UNSPLASH_ACCESS_KEY: str = ""

@@ -15,6 +15,8 @@ export default function MyProductsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formMode, setFormMode] = useState(null); // null | "create" | product.id being edited
   const [loadError, setLoadError] = useState("");
+  const [deactivateProduct, setDeactivateProduct] = useState(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -65,14 +67,18 @@ export default function MyProductsPage() {
     }
   };
 
-  const handleDeactivate = async (productId) => {
-    if (!window.confirm("Deactivate this product? It will no longer be visible to customers.")) return;
+  const confirmDeactivate = async () => {
+    if (!deactivateProduct) return;
+    setIsDeactivating(true);
     try {
-      await productService.deactivate(productId);
+      await productService.deactivate(deactivateProduct.id);
       toast.success("Product deactivated.");
+      setDeactivateProduct(null);
       await loadData();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not deactivate product."));
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -132,41 +138,74 @@ export default function MyProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-4 py-3 font-medium text-primary-900">{p.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.category.name}</td>
-                  <td className="px-4 py-3 text-gray-600">₹{Number(p.price).toFixed(2)} / {p.unit}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.stock_quantity}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.is_active ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      {p.is_active ? "Active" : "Deactivated"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setFormMode(p.id)}
-                      className="mr-3 text-sm font-medium text-primary-700 hover:underline"
-                    >
-                      Edit
-                    </button>
-                    {p.is_active && (
-                      <button
-                        onClick={() => handleDeactivate(p.id)}
-                        className="text-sm font-medium text-red-600 hover:underline"
+              {products.map((p) => {
+                const categoryName = p.category?.name || categories.find((c) => c.id === p.category_id)?.name || "Uncategorized";
+                return (
+                  <tr key={p.id}>
+                    <td className="px-4 py-3 font-medium text-primary-900">{p.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{categoryName}</td>
+                    <td className="px-4 py-3 text-gray-600">₹{Number(p.price).toFixed(2)} / {p.unit}</td>
+                    <td className="px-4 py-3 text-gray-600">{p.stock_quantity}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          p.is_active ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-500"
+                        }`}
                       >
-                        Deactivate
+                        {p.is_active ? "Active" : "Deactivated"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => setFormMode(p.id)}
+                        className="mr-3 text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        Edit
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      {p.is_active && (
+                        <button
+                          onClick={() => setDeactivateProduct(p)}
+                          className="text-sm font-medium text-red-600 hover:underline"
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* In-app Product Deactivation Confirmation Modal */}
+      {deactivateProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <h3 className="font-display text-lg font-bold text-gray-900">
+              Deactivate Product?
+            </h3>
+            <p className="text-sm text-gray-600">
+              Are you sure you want to deactivate this product?
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDeactivateProduct(null)}
+                disabled={isDeactivating}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="!bg-red-600 hover:!bg-red-700 !text-white"
+                onClick={confirmDeactivate}
+                isLoading={isDeactivating}
+              >
+                Deactivate
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -25,8 +25,8 @@ const PROMO_CARDS = [
     title: "Fruits & Vegetables",
     discount: "UP TO 40% OFF",
     subtitle: "Farm fresh, hand-picked daily",
-    bg: "from-purple-900 via-primary-800 to-indigo-900",
-    badgeBg: "bg-amber-400 text-purple-950",
+    bg: "from-primary-900 via-primary-800 to-emerald-900",
+    badgeBg: "bg-amber-400 text-primary-950",
     icon: "🍎🥦",
     categoryId: null,
   },
@@ -35,7 +35,7 @@ const PROMO_CARDS = [
     title: "Dairy Essentials",
     discount: "UP TO 30% OFF",
     subtitle: "Pure A2 milk, butter & paneer",
-    bg: "from-indigo-900 via-purple-800 to-purple-950",
+    bg: "from-emerald-900 via-emerald-800 to-primary-950",
     badgeBg: "bg-emerald-400 text-slate-900",
     icon: "🥛🧀",
     categoryId: null,
@@ -45,8 +45,8 @@ const PROMO_CARDS = [
     title: "Organic Staples",
     discount: "FLAT ₹100 OFF",
     subtitle: "Unpolished pulses & cold-pressed oils",
-    bg: "from-purple-950 via-primary-900 to-purple-900",
-    badgeBg: "bg-purple-300 text-purple-950",
+    bg: "from-primary-950 via-primary-900 to-primary-900",
+    badgeBg: "bg-emerald-300 text-primary-950",
     icon: "🌾🫒",
     categoryId: null,
   },
@@ -55,8 +55,8 @@ const PROMO_CARDS = [
     title: "Fresh & Healthy",
     discount: "BEST DEALS",
     subtitle: "Organic honey, beverages & snacks",
-    bg: "from-primary-900 via-purple-900 to-slate-900",
-    badgeBg: "bg-amber-300 text-purple-950",
+    bg: "from-primary-900 via-primary-900 to-slate-900",
+    badgeBg: "bg-amber-300 text-primary-950",
     icon: "🍯🧃",
     categoryId: null,
   },
@@ -120,10 +120,10 @@ export default function HomePage() {
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-10 flex-1 w-full">
         {/* HERO SECTION */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950 via-primary-900 to-indigo-950 p-6 sm:p-10 text-white shadow-xl">
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary-950 via-primary-900 to-primary-950 p-6 sm:p-10 text-white shadow-xl">
           {/* Subtle background glow circles */}
           <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-primary-500/20 blur-3xl" />
-          <div className="absolute -left-10 -bottom-10 h-64 w-64 rounded-full bg-purple-500/20 blur-3xl" />
+          <div className="absolute -left-10 -bottom-10 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
 
           <div className="relative z-10 grid gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
             <div>
@@ -133,19 +133,19 @@ export default function HomePage() {
 
               <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight sm:text-5xl leading-tight">
                 Organically Fresh. <br className="hidden sm:inline" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-300 to-purple-200">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-300 to-primary-100">
                   Delivered Fast. ⚡
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-xl text-base text-purple-100/90 leading-relaxed">
+              <p className="mt-4 max-w-xl text-base text-primary-100/90 leading-relaxed">
                 {isAuthenticated
                   ? `Welcome back, ${user?.full_name?.split(" ")[0]}! Get farm-fresh fruits, vegetables, dairy & organic staples delivered right to your doorstep.`
                   : "Fresh fruits, vegetables, pure dairy & certified organic daily essentials at your doorstep in minutes."}
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link to="/products" className="btn-primary !bg-white !text-purple-950 hover:!bg-amber-300 font-extrabold text-sm !px-6 !py-3 shadow-lg">
+                <Link to="/products" className="btn-primary !bg-white !text-primary-950 hover:!bg-amber-300 font-extrabold text-sm !px-6 !py-3 shadow-lg">
                   Shop Now →
                 </Link>
                 {isAuthenticated ? (
@@ -160,25 +160,25 @@ export default function HomePage() {
               </div>
 
               {/* Stats Bar */}
-              <div className="mt-8 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 text-xs text-purple-200">
+              <div className="mt-8 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 text-xs text-primary-100">
                 <div>
                   <div className="font-display text-2xl font-extrabold text-white">500+</div>
-                  <div className="mt-0.5 text-purple-200/80">Organic Items</div>
+                  <div className="mt-0.5 text-primary-100/80">Organic Items</div>
                 </div>
                 <div>
                   <div className="font-display text-2xl font-extrabold text-amber-300">10 Min</div>
-                  <div className="mt-0.5 text-purple-200/80">Express Delivery</div>
+                  <div className="mt-0.5 text-primary-100/80">Express Delivery</div>
                 </div>
                 <div>
                   <div className="font-display text-2xl font-extrabold text-emerald-300">4.9 ★</div>
-                  <div className="mt-0.5 text-purple-200/80">Customer Rating</div>
+                  <div className="mt-0.5 text-primary-100/80">Customer Rating</div>
                 </div>
               </div>
             </div>
 
             {/* Hero Quick Spotlight */}
             <div className="rounded-2xl bg-white/10 p-5 backdrop-blur border border-white/15 hidden lg:block shadow-2xl">
-              <div className="flex items-center justify-between text-xs text-purple-200 border-b border-white/10 pb-3">
+              <div className="flex items-center justify-between text-xs text-primary-100 border-b border-white/10 pb-3">
                 <span className="font-semibold">⚡ Instant Slot Available</span>
                 <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-emerald-300 font-bold">Live</span>
               </div>
@@ -190,7 +190,7 @@ export default function HomePage() {
                     <p className="font-semibold text-sm text-white truncate">Organic Shimla Apples</p>
                     <p className="text-xs text-amber-300 font-bold">₹140.00 / 1 kg</p>
                   </div>
-                  <span className="text-[10px] font-bold bg-amber-400 text-purple-950 px-2 py-1 rounded-md">40% OFF</span>
+                  <span className="text-[10px] font-bold bg-amber-400 text-primary-950 px-2 py-1 rounded-md">40% OFF</span>
                 </div>
                 <div className="flex items-center gap-3 rounded-xl bg-white/10 p-2.5 backdrop-blur">
                   <div className="text-2xl">🥛</div>
@@ -204,7 +204,7 @@ export default function HomePage() {
                   <div className="text-2xl">🥦</div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-sm text-white truncate">Fresh Organic Broccoli</p>
-                    <p className="text-xs text-purple-200 font-bold">₹55.00 / 250g</p>
+                    <p className="text-xs text-primary-100 font-bold">₹55.00 / 250g</p>
                   </div>
                   <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-1 rounded-md">Organic</span>
                 </div>
@@ -220,17 +220,19 @@ export default function HomePage() {
               <div
                 key={card.id}
                 onClick={() => navigate("/products")}
-                className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.bg} p-5 text-white shadow-md cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}
+                className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.bg} p-5 text-white shadow-md cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between min-h-[160px]`}
               >
-                <div className="flex items-start justify-between">
-                  <span className={`rounded-lg ${card.badgeBg} px-2.5 py-1 text-[10px] font-extrabold uppercase shadow-sm`}>
-                    {card.discount}
-                  </span>
-                  <span className="text-3xl group-hover:scale-110 transition-transform">{card.icon}</span>
-                </div>
+                <div>
+                  <div className="flex items-start justify-between">
+                    <span className={`rounded-lg ${card.badgeBg} px-2.5 py-1 text-[10px] font-extrabold uppercase shadow-xs`}>
+                      {card.discount}
+                    </span>
+                    <span className="text-3xl group-hover:scale-110 transition-transform">{card.icon}</span>
+                  </div>
 
-                <h3 className="mt-4 font-display text-lg font-bold text-white">{card.title}</h3>
-                <p className="mt-1 text-xs text-purple-200">{card.subtitle}</p>
+                  <h3 className="mt-3 font-display text-lg font-bold text-white">{card.title}</h3>
+                  <p className="mt-1 text-xs text-primary-100">{card.subtitle}</p>
+                </div>
 
                 <div className="mt-4 flex items-center gap-1 text-xs font-bold text-amber-300 group-hover:underline">
                   <span>Shop Category</span>
@@ -241,8 +243,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* SHOP BY CATEGORY */}
-        <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        {/* SHOP BY CATEGORY (CONSISTENT SIZED CARDS) */}
+        <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-xs">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <span className="text-xs font-extrabold uppercase tracking-widest text-primary-600">Categories</span>
@@ -253,20 +255,31 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 items-stretch">
             {categories.map((category) => (
               <Link
                 key={category.id}
                 to={`/products?category_id=${category.id}`}
-                className="group flex flex-col items-center rounded-2xl border border-gray-100 bg-primary-50/30 p-4 text-center transition-all duration-200 hover:border-primary-300 hover:bg-white hover:shadow-md"
+                className="group flex flex-col items-center justify-between h-full rounded-2xl border border-gray-100 bg-primary-50/30 p-4 text-center transition-all duration-200 hover:border-primary-300 hover:bg-white hover:shadow-md"
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm group-hover:scale-110 transition-transform">
-                  {CATEGORY_ICON[category.name] || "🌿"}
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-xs group-hover:scale-105 transition-transform">
+                  {category.image_url ? (
+                    <img
+                      src={category.image_url}
+                      alt={category.name}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="text-3xl">{CATEGORY_ICON[category.name] || "🌿"}</span>
+                  )}
                 </div>
-                <p className="mt-3 text-sm font-bold text-gray-800 group-hover:text-primary-700 transition">
-                  {category.name}
-                </p>
-                <span className="mt-1 text-[11px] font-medium text-gray-400">100% Organic</span>
+                <div className="mt-3 flex flex-col items-center justify-center flex-1 w-full min-h-[40px]">
+                  <p className="text-xs font-bold text-gray-800 group-hover:text-primary-700 transition line-clamp-2 leading-tight">
+                    {category.name}
+                  </p>
+                </div>
+                <span className="mt-1 text-[10px] font-medium text-gray-400 shrink-0">100% Organic</span>
               </Link>
             ))}
           </div>
@@ -302,13 +315,13 @@ export default function HomePage() {
         </section>
 
         {/* WHY ORGANICKART */}
-        <section className="rounded-3xl bg-gradient-to-br from-primary-900 to-purple-950 p-8 text-white shadow-lg">
+        <section className="rounded-3xl bg-gradient-to-br from-primary-900 to-primary-950 p-8 text-white shadow-lg">
           <div className="text-center max-w-2xl mx-auto">
             <span className="rounded-full bg-accent-400/20 px-3 py-1 text-xs font-bold text-accent-300 border border-accent-400/30 uppercase tracking-widest">
               Why Choose Us
             </span>
             <h2 className="mt-3 font-display text-2xl sm:text-3xl font-extrabold">The OrganicKart Advantage</h2>
-            <p className="mt-2 text-sm text-purple-200">
+            <p className="mt-2 text-sm text-primary-100">
               We bring farm-fresh organic produce directly from certified growers to your kitchen with guaranteed freshness.
             </p>
           </div>
@@ -317,32 +330,32 @@ export default function HomePage() {
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">⚡</div>
               <h4 className="mt-2 text-sm font-bold text-white">10-Min Delivery</h4>
-              <p className="mt-1 text-[11px] text-purple-200">Lightning fast doorstep fulfillment</p>
+              <p className="mt-1 text-[11px] text-primary-100">Lightning fast doorstep fulfillment</p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">🥬</div>
               <h4 className="mt-2 text-sm font-bold text-white">100% Certified</h4>
-              <p className="mt-1 text-[11px] text-purple-200">Strict lab & admin verified organic</p>
+              <p className="mt-1 text-[11px] text-primary-100">Strict lab & admin verified organic</p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">💰</div>
               <h4 className="mt-2 text-sm font-bold text-white">Best Prices</h4>
-              <p className="mt-1 text-[11px] text-purple-200">Direct grower rates without middlemen</p>
+              <p className="mt-1 text-[11px] text-primary-100">Direct grower rates without middlemen</p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">🔒</div>
               <h4 className="mt-2 text-sm font-bold text-white">Safe & Secure</h4>
-              <p className="mt-1 text-[11px] text-purple-200">JWT protected digital transactions</p>
+              <p className="mt-1 text-[11px] text-primary-100">JWT protected digital transactions</p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">↩</div>
               <h4 className="mt-2 text-sm font-bold text-white">Easy Returns</h4>
-              <p className="mt-1 text-[11px] text-purple-200">No questions asked return policy</p>
+              <p className="mt-1 text-[11px] text-primary-100">No questions asked return policy</p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-center backdrop-blur border border-white/10 hover:bg-white/15 transition">
               <div className="text-3xl">💬</div>
               <h4 className="mt-2 text-sm font-bold text-white">24/7 Support</h4>
-              <p className="mt-1 text-[11px] text-purple-200">Instant dedicated assistance</p>
+              <p className="mt-1 text-[11px] text-primary-100">Instant dedicated assistance</p>
             </div>
           </div>
         </section>
@@ -355,8 +368,8 @@ export default function HomePage() {
             {/* Column 1: Brand */}
             <div className="lg:col-span-2 space-y-4">
               <Link to="/" className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-primary-600 to-purple-800 flex items-center justify-center text-white text-lg font-bold shadow-md">
-                  🪻
+                <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-primary-600 to-emerald-800 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                  🌿
                 </div>
                 <span className="font-display text-xl font-bold text-primary-900">OrganicKart</span>
               </Link>
@@ -366,7 +379,7 @@ export default function HomePage() {
               <div className="flex items-center gap-3 pt-2 text-lg text-primary-700">
                 <span className="cursor-pointer hover:scale-110 transition">🌐</span>
                 <span className="cursor-pointer hover:scale-110 transition">🐦</span>
-                <span className="cursor-pointer hover:scale-110 transition">📸</span>
+                <span className="cursor-pointer hover:scale-110 transition">📷</span>
                 <span className="cursor-pointer hover:scale-110 transition">💼</span>
               </div>
             </div>
@@ -438,4 +451,3 @@ export default function HomePage() {
     </div>
   );
 }
-

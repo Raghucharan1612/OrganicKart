@@ -2472,6 +2472,7 @@ def seed_categories(db):
             category = Category(
                 name=name,
                 description=description,
+                image_url=CATEGORY_IMAGES.get(name),
                 is_active=True,
             )
 
@@ -2486,6 +2487,7 @@ def seed_categories(db):
         else:
 
             category.description = description
+            category.image_url = CATEGORY_IMAGES.get(name)
             category.is_active = True
 
             print(

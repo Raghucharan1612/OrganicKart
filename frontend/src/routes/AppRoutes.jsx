@@ -53,7 +53,7 @@ export default function AppRoutes() {
           </Route>
         </Route>
 
-        <Route element={<RoleRoute allowedRoles={["VENDOR", "ADMIN", "SUPER_ADMIN"]} />}>
+        <Route element={<RoleRoute allowedRoles={["VENDOR", "FARMER", "ADMIN", "SUPER_ADMIN"]} />}>
           <Route path="/seller" element={<SellerDashboardPage />} />
           <Route path="/seller/products" element={<MyProductsPage />} />
           <Route path="/seller/products/new" element={<MyProductsPage />} />

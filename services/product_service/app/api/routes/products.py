@@ -28,6 +28,7 @@ def get_products(
     db: Session = Depends(get_db),
     search: str | None = Query(default=None),
     category_id: int | None = Query(default=None),
+    seller_id: int | None = Query(default=None),
     certification: str | None = Query(default=None),
     min_price: Decimal | None = Query(default=None, ge=0),
     max_price: Decimal | None = Query(default=None, ge=0),
@@ -46,6 +47,7 @@ def get_products(
         db,
         search=search,
         category_id=category_id,
+        seller_id=seller_id if can_view_certification_queue or (current_actor and current_actor["role"] in {"ADMIN", "SUPER_ADMIN"}) else seller_id,
         certification=certification if can_view_certification_queue else None,
         min_price=min_price,
         max_price=max_price,
@@ -55,7 +57,7 @@ def get_products(
         page_size=page_size,
         customer_visible=not can_view_certification_queue,
     )
-    if search is not None or category_id is not None or certification is not None or min_price is not None or max_price is not None or page != 1 or page_size != 20 or sort_by != "created_at" or sort_order != "desc":
+    if search is not None or category_id is not None or seller_id is not None or certification is not None or min_price is not None or max_price is not None or page != 1 or page_size != 20 or sort_by != "created_at" or sort_order != "desc":
         return {"items": items, "total": total, "page": page, "page_size": page_size}
     return items
 

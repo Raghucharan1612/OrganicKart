@@ -16,7 +16,7 @@ const EMPTY_FORM = {
   farm_name: "",
 };
 
-const UNIT_OPTIONS = ["kg", "g", "litre", "ml", "dozen", "piece", "bunch"];
+const UNIT_OPTIONS = ["100g", "200g", "250g", "500g", "1kg", "kg", "g", "500ml", "1 litre", "litre", "ml", "piece", "pack", "dozen", "bunch"];
 
 export default function ProductForm({ categories, initialValues, onSubmit, onCancel, isSaving }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, ...initialValues });
