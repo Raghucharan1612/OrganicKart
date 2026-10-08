@@ -40,6 +40,7 @@ class OrderItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    seller_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)

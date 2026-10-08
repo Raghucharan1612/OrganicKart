@@ -1,18 +1,34 @@
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/i18n/LanguageContext";
+import addressService from "@/services/addressService";
+import geocodingService from "@/services/geocodingService";
+import AddressForm from "@/features/auth/components/AddressForm";
 import orderService from "@/services/orderService";
 import notificationService from "@/services/notificationService";
+import { getApiErrorMessage } from "@/utils/errorUtils";
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const locationState = useLocation();
   const [searchParams] = useSearchParams();
   const [cartCount, setCartCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
-  const [location] = useState("Bengaluru, 560001");
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const [addressFormInitialValues, setAddressFormInitialValues] = useState(null);
+  const [locationError, setLocationError] = useState("");
+  const [addressError, setAddressError] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const cartRefreshVersion = useRef(0);
 
@@ -20,6 +36,129 @@ export default function Navbar() {
   const isPartner = user?.role === "DELIVERY_PARTNER";
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const isSeller = user?.role === "VENDOR" || user?.role === "FARMER";
+  const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
+  const location = selectedAddress
+    ? `${selectedAddress.city}, ${selectedAddress.postal_code}`
+    : t("chooseLocation");
+
+  const loadAddresses = async () => {
+    setIsLoadingAddresses(true);
+    setAddressError("");
+    try {
+      const savedAddresses = await addressService.list();
+      setAddresses(savedAddresses);
+      const storageKey = `organickart:selected-address:${user?.id}`;
+      const storedId = Number(window.localStorage.getItem(storageKey));
+      const storedAddress = savedAddresses.find((address) => address.id === storedId);
+      const preferredAddress = storedAddress || savedAddresses.find((address) => address.is_default) || savedAddresses[0];
+      setSelectedAddressId(preferredAddress?.id ?? null);
+      if (preferredAddress) window.localStorage.setItem(storageKey, String(preferredAddress.id));
+    } catch (error) {
+      setAddressError(getApiErrorMessage(error, "Could not load your saved addresses."));
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
+  const requestCurrentLocation = () => {
+    setLocationError("");
+    setIsLocating(true);
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is unavailable in this browser. You can still choose or add an address.");
+      setIsLocating(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        setEditingAddressId(null);
+        const initialValues = {
+          recipient_name: user?.full_name || "",
+          phone: user?.phone || user?.phone_number || "",
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        };
+        try {
+          const address = await geocodingService.reverse(coords.latitude, coords.longitude);
+          setAddressFormInitialValues({ ...initialValues, ...address });
+        } catch {
+          setAddressFormInitialValues(initialValues);
+          setLocationError("Location found, but its address could not be filled automatically. Please complete the address fields.");
+        } finally {
+          setIsAddressFormOpen(true);
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        const messages = {
+          [error.PERMISSION_DENIED]: "Location access was denied. You can still choose or add an address.",
+          [error.POSITION_UNAVAILABLE]: "Your location is unavailable. Please choose or add an address manually.",
+          [error.TIMEOUT]: "Location request timed out. Please try again or add an address manually.",
+        };
+        setLocationError(messages[error.code] || "Could not retrieve your location. Please choose or add an address manually.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const handleOpenLocationDialog = () => {
+    setIsLocationDialogOpen(true);
+    setIsAddressFormOpen(false);
+    setEditingAddressId(null);
+    setLocationError("");
+    if (isAuthenticated) {
+      if (!isLoadingAddresses) loadAddresses();
+      requestCurrentLocation();
+    }
+  };
+
+  const handleSelectAddress = (address) => {
+    setSelectedAddressId(address.id);
+    window.localStorage.setItem(`organickart:selected-address:${user?.id}`, String(address.id));
+    setIsLocationDialogOpen(false);
+    setIsAddressFormOpen(false);
+    setEditingAddressId(null);
+  };
+
+  const handleEditAddress = (address) => {
+    setEditingAddressId(address.id);
+    setAddressFormInitialValues({
+      label: address.label,
+      recipient_name: address.recipient_name,
+      phone: address.phone,
+      address_line1: address.address_line1,
+      address_line2: address.address_line2 || "",
+      city: address.city,
+      state: address.state,
+      postal_code: address.postal_code,
+      country: address.country,
+      is_default: address.is_default,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    });
+    setIsAddressFormOpen(true);
+  };
+
+  const handleSaveAddress = async (payload) => {
+    setIsSavingAddress(true);
+    setAddressError("");
+    try {
+      if (editingAddressId != null) {
+        const updatedAddress = await addressService.update(editingAddressId, payload);
+        setAddresses((current) => current.map((address) => address.id === updatedAddress.id ? updatedAddress : address));
+        handleSelectAddress(updatedAddress);
+      } else {
+        const createdAddress = await addressService.create(payload);
+        setAddresses((current) => [...current, createdAddress]);
+        handleSelectAddress(createdAddress);
+      }
+    } catch (error) {
+      setAddressError(getApiErrorMessage(error, "Could not save this address."));
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
 
   const refreshCounts = async () => {
     const refreshVersion = ++cartRefreshVersion.current;
@@ -53,6 +192,15 @@ export default function Navbar() {
     window.addEventListener("cart-updated", handleCartUpdate);
     return () => window.removeEventListener("cart-updated", handleCartUpdate);
   }, [isAuthenticated, isCustomer]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAddresses();
+    } else {
+      setAddresses([]);
+      setSelectedAddressId(null);
+    }
+  }, [isAuthenticated, user?.id]);
 
   // Auto-close mobile drawer on route change
   useEffect(() => {
@@ -88,23 +236,35 @@ export default function Navbar() {
     <div className="sticky top-0 z-40 bg-white shadow-xs border-b border-gray-100">
       {/* Top Promotional Bar */}
       <div className="bg-gradient-to-r from-primary-900 via-primary-800 to-primary-950 text-white text-xs py-1.5 px-4 font-medium">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 bg-primary-700/60 px-2 py-0.5 rounded-full text-[11px] font-semibold text-primary-200">
-              ⚡ 10-Min Delivery
+              ⚡ {t("deliveryTime")}
             </span>
-            <span className="hidden sm:inline text-primary-100">• Fresh & 100% Organic • Best Prices Guaranteed</span>
+            <span className="hidden sm:inline text-primary-100">{t("promotion")}</span>
           </div>
           <div className="flex items-center gap-4 text-primary-100">
-            <span className="hidden md:inline">📞 Support: 1800-ORGANIC</span>
-            <span className="cursor-pointer hover:text-white transition">🌐 ENG</span>
+            <span className="hidden md:inline">📞 {t("support")}</span>
+            <label className="flex items-center gap-1.5">
+              <span aria-hidden="true">🌐</span>
+              <span className="sr-only">{t("language")}</span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                aria-label={t("language")}
+                className="cursor-pointer bg-transparent text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/70"
+              >
+                <option value="en" className="text-gray-900">ENG</option>
+                <option value="kn" className="text-gray-900">ಕನ್ನಡ</option>
+              </select>
+            </label>
           </div>
         </div>
       </div>
 
       {/* Main Navbar Header */}
       <header className="bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="w-full px-4 py-3 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
           <div className="flex items-center justify-between gap-3 md:gap-4">
             {/* Logo */}
             <Link to={isPartner ? "/delivery" : "/"} className="flex items-center gap-2 group shrink-0">
@@ -123,14 +283,20 @@ export default function Navbar() {
 
             {/* Delivery Location Indicator */}
             {!isPartner && (
-              <div className="hidden lg:flex items-center gap-2 rounded-2xl bg-primary-50 px-3.5 py-2 border border-primary-100/80 cursor-pointer hover:bg-primary-100/50 transition">
+              <button
+                type="button"
+                onClick={handleOpenLocationDialog}
+                className="hidden lg:flex items-center gap-2 rounded-2xl bg-primary-50 px-3.5 py-2 border border-primary-100/80 cursor-pointer hover:bg-primary-100/50 transition text-left"
+                aria-haspopup="dialog"
+                aria-expanded={isLocationDialogOpen}
+              >
                 <span className="text-lg">📍</span>
                 <div className="flex flex-col text-left">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-700">Deliver to</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-700">{t("deliverTo")}</span>
                   <span className="text-xs font-semibold text-gray-800 truncate max-w-[140px]">{location}</span>
                 </div>
                 <span className="text-xs text-primary-600 font-bold ml-1">▾</span>
-              </div>
+              </button>
             )}
 
             {/* Global Search Bar (Desktop/Tablet) */}
@@ -162,7 +328,7 @@ export default function Navbar() {
                   to="/products"
                   className="hidden sm:inline-flex items-center px-3 py-2 text-sm font-semibold text-gray-700 hover:text-primary-700 hover:bg-primary-50 rounded-xl transition"
                 >
-                  Catalog
+                  {t("catalog")}
                 </Link>
               )}
 
@@ -178,7 +344,7 @@ export default function Navbar() {
                       to="/orders"
                       className="hidden md:inline-flex items-center px-3 py-2 text-sm font-semibold text-gray-700 hover:text-primary-700 hover:bg-primary-50 rounded-xl transition"
                     >
-                      Orders
+                      {t("orders")}
                     </Link>
                   )}
 
@@ -251,13 +417,13 @@ export default function Navbar() {
                     to="/login"
                     className="px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50 rounded-xl transition"
                   >
-                    Login
+                    {t("login")}
                   </Link>
                   <Link
                     to="/register"
                     className="btn-primary !py-2 !px-4 !rounded-xl text-sm"
                   >
-                    Sign Up
+                    {t("signUp")}
                   </Link>
                 </div>
               )}
@@ -295,6 +461,113 @@ export default function Navbar() {
           )}
         </div>
       </header>
+
+      {isLocationDialogOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsLocationDialogOpen(false);
+        }}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delivery-location-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-2xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delivery-location-title" className="font-display text-lg font-bold text-primary-900">Delivery location</h2>
+                <p className="mt-1 text-sm text-gray-500">Choose a saved address or add a new one.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLocationDialogOpen(false)}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                aria-label="Close delivery location dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            {!isAuthenticated ? (
+              <div className="rounded-lg border border-gray-200 p-4 text-sm text-gray-700">
+                <p>Sign in to save and select a delivery address.</p>
+                <Link to="/login" onClick={() => setIsLocationDialogOpen(false)} className="mt-3 inline-flex font-semibold text-primary-700 hover:underline">
+                  Sign in
+                </Link>
+              </div>
+            ) : (
+              <>
+                {isLoadingAddresses ? (
+                  <p className="py-3 text-sm text-gray-500">Loading saved addresses…</p>
+                ) : addresses.length > 0 ? (
+                  <div className="mb-4 divide-y divide-gray-100 rounded-lg border border-gray-200">
+                    {addresses.map((address) => (
+                      <div key={address.id} className="flex items-center justify-between gap-3 p-3 hover:bg-primary-50">
+                        <button
+                          type="button"
+                          onClick={() => handleEditAddress(address)}
+                          aria-label={`Edit ${address.label} address`}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <span className="block truncate text-sm font-semibold text-gray-900">{address.label} · {address.city}, {address.postal_code}</span>
+                          <span className="mt-1 block truncate text-xs text-gray-500">{address.address_line1}, {address.state}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAddress(address)}
+                          className="shrink-0 rounded-lg border border-primary-200 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-white"
+                        >
+                          {selectedAddressId === address.id ? "Selected" : "Deliver here"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {locationError && <p role="alert" className="mb-3 text-sm text-red-600">{locationError}</p>}
+                {addressError && <p role="alert" className="mb-3 text-sm text-red-600">{addressError}</p>}
+
+                {isAddressFormOpen ? (
+                  <div className="border-t border-gray-100 pt-4">
+                    <h3 className="mb-3 text-sm font-semibold text-gray-900">Save delivery address</h3>
+                    <AddressForm
+                      key={`${editingAddressId ?? "new"}-${addressFormInitialValues?.latitude}-${addressFormInitialValues?.longitude}`}
+                      initialValues={addressFormInitialValues || undefined}
+                      onSubmit={handleSaveAddress}
+                      onCancel={() => {
+                        setIsAddressFormOpen(false);
+                        setEditingAddressId(null);
+                      }}
+                      isSaving={isSavingAddress}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={requestCurrentLocation}
+                      disabled={isLocating}
+                      className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
+                    >
+                      {isLocating ? "Requesting location…" : "Use current location"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingAddressId(null);
+                        setAddressFormInitialValues({ recipient_name: user?.full_name || "", phone: user?.phone || user?.phone_number || "" });
+                        setIsAddressFormOpen(true);
+                      }}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Add address manually
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MOBILE SLIDE-OVER NAVIGATION DRAWER */}

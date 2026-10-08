@@ -81,6 +81,15 @@ $serviceDefinitions = @(
     },
 
     @{
+        Name = "AI Service"
+        Port = 8002
+        WorkingDirectory = Join-Path $Root "services\ai_service"
+        Executable = Join-Path $Root "services\product_service\.venv\Scripts\python.exe"
+        Arguments = "-m uvicorn app.main:app --host 127.0.0.1 --port 8002"
+        LogPath = Join-Path $LogsDir "ai.log"
+    },
+
+    @{
         Name = "Product Service"
         Port = 8003
         WorkingDirectory = Join-Path $Root "services\product_service"
@@ -190,6 +199,7 @@ Write-Host "========================================"
 Write-Host "OrganicKart started"
 Write-Host "========================================"
 Write-Host "User Service       http://127.0.0.1:8001"
+Write-Host "AI Service         http://127.0.0.1:8002"
 Write-Host "Product Service    http://127.0.0.1:8003"
 Write-Host "Order Service      http://127.0.0.1:8004"
 Write-Host "Delivery Service   http://127.0.0.1:8005"

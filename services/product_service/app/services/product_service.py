@@ -11,6 +11,7 @@ from app.schemas.products import ProductCreate, ProductUpdate
 
 
 class ProductService:
+    LOW_STOCK_THRESHOLD = 10
 
     @staticmethod
     def create_product(db: Session, product_data: ProductCreate, seller_id: int) -> Product:
@@ -86,6 +87,10 @@ class ProductService:
         if product is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
         return product
+
+    @staticmethod
+    def get_low_stock_active_products(db: Session) -> list[Product]:
+        return ProductRepository.get_low_stock_active(db, ProductService.LOW_STOCK_THRESHOLD)
 
     @staticmethod
     def update_product(db: Session, product_id: int, product_data: ProductUpdate) -> Product:

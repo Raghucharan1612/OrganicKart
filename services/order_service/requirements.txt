@@ -8,4 +8,5 @@ python-jose[cryptography]
 passlib[bcrypt]
 httpx
 razorpay
+alembic
 pytest

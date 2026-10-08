@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.order import Order, OrderItem
 
@@ -34,6 +34,19 @@ class OrderRepository:
 
     def get_by_user(self, user_id: int) -> list[Order]:
         return self.db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
+
+    def get_by_seller(self, seller_id: int) -> list[Order]:
+        return (
+            self.db.query(Order)
+            .join(OrderItem, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id)
+            .distinct()
+            .order_by(Order.created_at.desc())
+            .all()
+        )
+
+    def get_all(self) -> list[Order]:
+        return self.db.query(Order).options(selectinload(Order.items)).order_by(Order.created_at.desc()).all()
 
     def cancel(self, order: Order) -> Order:
         order.status = "CANCELLED"

@@ -9,6 +9,15 @@ from app.models.products import Product
 class ProductRepository:
 
     @staticmethod
+    def get_low_stock_active(db: Session, threshold: int) -> list[Product]:
+        return (
+            db.query(Product)
+            .filter(Product.is_active.is_(True), Product.stock_quantity <= threshold)
+            .order_by(Product.stock_quantity.asc(), Product.id.asc())
+            .all()
+        )
+
+    @staticmethod
     def create(db: Session, product: Product) -> Product:
         db.add(product)
         db.commit()

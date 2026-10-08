@@ -8,7 +8,19 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.database.session import get_db
-from app.schemas.order import CheckoutInitiate, CheckoutInitiateResponse, OrderCreate, OrderItemResponse, OrderResponse, PaymentStatusResponse, PaymentVerificationResponse, RazorpayPaymentVerify
+from app.schemas.order import (
+    CheckoutInitiate,
+    CheckoutInitiateResponse,
+    AdminBusinessInsightsResponse,
+    AdminOrderAnalyticsResponse,
+    OrderCreate,
+    OrderItemResponse,
+    OrderResponse,
+    PaymentStatusResponse,
+    PaymentVerificationResponse,
+    RazorpayPaymentVerify,
+    SellerAnalyticsResponse,
+)
 from app.services.order_service import OrderService
 from app.services.razorpay_service import RazorpayService
 
@@ -31,6 +43,103 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
             detail="Only customers can access order operations.",
         )
     return int(payload["sub"])
+
+
+def get_current_seller_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> int:
+    payload = decode_access_token(credentials.credentials)
+    if payload is None or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    role = payload.get("role")
+    if role not in {"VENDOR", "FARMER"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only vendors and farmers can access seller order operations.",
+        )
+    return int(payload["sub"])
+
+
+def get_current_admin_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> int:
+    payload = decode_access_token(credentials.credentials)
+    if payload is None or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if payload.get("role") != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can access order analytics.",
+        )
+    return int(payload["sub"])
+
+
+@router.get("/seller", response_model=list[OrderResponse])
+def list_seller_orders(
+    db: Session = Depends(get_db),
+    seller_id: int = Depends(get_current_seller_id),
+):
+    orders = OrderService(db).list_seller_orders(seller_id)
+    results = []
+    for order in orders:
+        results.append(
+            OrderResponse(
+                id=order.id,
+                user_id=order.user_id,
+                status=order.status,
+                payment_status=order.payment_status,
+                subtotal=order.subtotal,
+                delivery_fee=order.delivery_fee,
+                total_amount=order.total_amount,
+                shipping_address=order.shipping_address,
+                created_at=order.created_at,
+                updated_at=order.updated_at,
+                items=[
+                    OrderItemResponse(
+                        id=item.id,
+                        order_id=item.order_id,
+                        product_id=item.product_id,
+                        seller_id=item.seller_id,
+                        product_name=item.product_name,
+                        unit_price=item.unit_price,
+                        quantity=item.quantity,
+                        subtotal=item.subtotal,
+                        created_at=item.created_at,
+                    )
+                    for item in order.items
+                    if item.seller_id == seller_id
+                ],
+            )
+        )
+    return results
+
+
+@router.get("/seller/analytics", response_model=SellerAnalyticsResponse)
+def get_seller_analytics(
+    db: Session = Depends(get_db),
+    seller_id: int = Depends(get_current_seller_id),
+):
+    return OrderService(db).get_seller_analytics(seller_id)
+
+
+@router.get("/admin/analytics", response_model=AdminOrderAnalyticsResponse)
+def get_admin_analytics(
+    db: Session = Depends(get_db),
+    _: int = Depends(get_current_admin_id),
+):
+    return OrderService(db).get_admin_analytics()
+
+
+@router.get("/admin/business-insights", response_model=AdminBusinessInsightsResponse)
+def get_admin_business_insights(
+    db: Session = Depends(get_db),
+    _: int = Depends(get_current_admin_id),
+):
+    return OrderService(db).get_admin_business_insights()
 
 
 @router.get("", response_model=list[OrderResponse])

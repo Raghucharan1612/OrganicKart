@@ -2,6 +2,8 @@ import pytest
 import json
 import hashlib
 import hmac
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -13,7 +15,7 @@ from app.core.config import settings
 from app.database.base import Base
 from app.database.session import get_db
 from app.models.cart import CartItem
-from app.models.order import Order
+from app.models.order import Order, OrderItem
 from app.models.payment import PaymentAttempt
 from app.services.order_service import OrderService
 from app.services.razorpay_service import RazorpayService
@@ -407,3 +409,530 @@ def test_razorpay_webhook_signature_uses_unmodified_raw_body():
     RazorpayService.verify_webhook_signature(body, signature)
     with pytest.raises(HTTPException):
         RazorpayService.verify_webhook_signature(body + b" ", signature)
+
+
+def test_checkout_captures_seller_id_from_product_service(monkeypatch):
+    def custom_product_get(url, **kwargs):
+        class Response:
+            status_code = 200
+
+            def json(self):
+                if "addresses" in url:
+                    return [{"id": 1, "user_id": 1, "recipient_name": "Test Customer", "phone": "9999999999", "address_line1": "1 Main St", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001", "country": "India"}]
+                return {"id": 10, "name": "Organic Apples", "price": "50.00", "certification": "APPROVED", "is_active": True, "stock_quantity": 50, "seller_id": 42}
+
+        return Response()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_product_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_product_get)
+
+    client.post("/api/v1/cart/items", json={"product_id": 10, "quantity": 2}, headers=get_auth_headers())
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1}, headers=get_auth_headers())
+    assert res.status_code == 201
+    order_id = res.json()["order_id"]
+
+    db = TestingSessionLocal()
+    try:
+        order = db.get(Order, order_id)
+        assert len(order.items) == 1
+        assert order.items[0].seller_id == 42
+    finally:
+        db.close()
+
+
+def test_checkout_captures_same_seller_id_for_multiple_items_from_same_seller(monkeypatch):
+    def custom_product_get(url, **kwargs):
+        class Response:
+            status_code = 200
+
+            def json(self):
+                if "addresses" in url:
+                    return [{"id": 1, "user_id": 1, "recipient_name": "Test Customer", "phone": "9999999999", "address_line1": "1 Main St", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001", "country": "India"}]
+                product_id = int(url.rstrip("/").split("/")[-1])
+                return {"id": product_id, "name": f"Product {product_id}", "price": "20.00", "certification": "APPROVED", "is_active": True, "stock_quantity": 50, "seller_id": 99}
+
+        return Response()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_product_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_product_get)
+
+    client.post("/api/v1/cart/items", json={"product_id": 1, "quantity": 1}, headers=get_auth_headers())
+    client.post("/api/v1/cart/items", json={"product_id": 2, "quantity": 1}, headers=get_auth_headers())
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1}, headers=get_auth_headers())
+    assert res.status_code == 201
+
+    db = TestingSessionLocal()
+    try:
+        order = db.get(Order, res.json()["order_id"])
+        assert len(order.items) == 2
+        assert all(item.seller_id == 99 for item in order.items)
+    finally:
+        db.close()
+
+
+def test_checkout_captures_different_seller_ids_for_items_from_different_sellers(monkeypatch):
+    def custom_product_get(url, **kwargs):
+        class Response:
+            status_code = 200
+
+            def json(self):
+                if "addresses" in url:
+                    return [{"id": 1, "user_id": 1, "recipient_name": "Test Customer", "phone": "9999999999", "address_line1": "1 Main St", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001", "country": "India"}]
+                product_id = int(url.rstrip("/").split("/")[-1])
+                seller_map = {101: 5, 102: 12}
+                return {"id": product_id, "name": f"Product {product_id}", "price": "25.00", "certification": "APPROVED", "is_active": True, "stock_quantity": 50, "seller_id": seller_map.get(product_id, 1)}
+
+        return Response()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_product_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_product_get)
+
+    client.post("/api/v1/cart/items", json={"product_id": 101, "quantity": 1}, headers=get_auth_headers())
+    client.post("/api/v1/cart/items", json={"product_id": 102, "quantity": 1}, headers=get_auth_headers())
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1}, headers=get_auth_headers())
+    assert res.status_code == 201
+
+    db = TestingSessionLocal()
+    try:
+        order = db.get(Order, res.json()["order_id"])
+        assert len(order.items) == 2
+        item_sellers = {item.product_id: item.seller_id for item in order.items}
+        assert item_sellers[101] == 5
+        assert item_sellers[102] == 12
+    finally:
+        db.close()
+
+
+def test_checkout_handles_product_without_seller_id_gracefully(monkeypatch):
+    def custom_product_get(url, **kwargs):
+        class Response:
+            status_code = 200
+
+            def json(self):
+                if "addresses" in url:
+                    return [{"id": 1, "user_id": 1, "recipient_name": "Test Customer", "phone": "9999999999", "address_line1": "1 Main St", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001", "country": "India"}]
+                return {"id": 200, "name": "Legacy Product", "price": "10.00", "certification": "APPROVED", "is_active": True, "stock_quantity": 50}
+
+        return Response()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_product_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_product_get)
+
+    client.post("/api/v1/cart/items", json={"product_id": 200, "quantity": 1}, headers=get_auth_headers())
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1}, headers=get_auth_headers())
+    assert res.status_code == 201
+
+    db = TestingSessionLocal()
+    try:
+        order = db.get(Order, res.json()["order_id"])
+        assert len(order.items) == 1
+        assert order.items[0].seller_id is None
+    finally:
+        db.close()
+
+
+def test_checkout_customer_cannot_inject_seller_id(monkeypatch):
+    def custom_product_get(url, **kwargs):
+        class Response:
+            status_code = 200
+
+            def json(self):
+                if "addresses" in url:
+                    return [{"id": 1, "user_id": 1, "recipient_name": "Test Customer", "phone": "9999999999", "address_line1": "1 Main St", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001", "country": "India"}]
+                return {"id": 300, "name": "Organic Honey", "price": "100.00", "certification": "APPROVED", "is_active": True, "stock_quantity": 50, "seller_id": 77}
+
+        return Response()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_product_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_product_get)
+
+    client.post("/api/v1/cart/items", json={"product_id": 300, "quantity": 1}, headers=get_auth_headers())
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1, "seller_id": 9999}, headers=get_auth_headers())
+    assert res.status_code == 201
+
+    db = TestingSessionLocal()
+    try:
+        order = db.get(Order, res.json()["order_id"])
+        assert len(order.items) == 1
+        assert order.items[0].seller_id == 77
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Step 8: Seller Orders API tests
+# ---------------------------------------------------------------------------
+
+def _create_order_with_seller_items(monkeypatch, customer_user_id: int, items: list[dict]) -> int:
+    """Helper: place a checkout order for a customer whose cart has the given items.
+
+    Each entry in `items` is {"product_id": int, "seller_id": int|None, "price": str}.
+    Returns the created order_id.
+    """
+    seller_map = {item["product_id"]: item for item in items}
+
+    def custom_get(url, **kwargs):
+        class Resp:
+            status_code = 200
+            def json(self_inner):
+                if "addresses" in url:
+                    return [{
+                        "id": 1, "user_id": customer_user_id,
+                        "recipient_name": "Buyer", "phone": "9000000000",
+                        "address_line1": "10 Farm Rd", "city": "Pune",
+                        "state": "Maharashtra", "postal_code": "411001",
+                        "country": "India",
+                    }]
+                pid = int(url.rstrip("/").split("/")[-1])
+                meta = seller_map.get(pid, {"product_id": pid, "seller_id": None, "price": "10.00"})
+                out = {
+                    "id": pid,
+                    "name": f"Product {pid}",
+                    "price": meta.get("price", "10.00"),
+                    "certification": "APPROVED",
+                    "is_active": True,
+                    "stock_quantity": 50,
+                }
+                if meta.get("seller_id") is not None:
+                    out["seller_id"] = meta["seller_id"]
+                return out
+        return Resp()
+
+    monkeypatch.setattr("app.services.cart_service.httpx.get", custom_get)
+    monkeypatch.setattr("app.services.order_service.httpx.get", custom_get)
+
+    headers = get_auth_headers(user_id=customer_user_id, role="CUSTOMER")
+    for item in items:
+        client.post("/api/v1/cart/items", json={"product_id": item["product_id"], "quantity": 1}, headers=headers)
+
+    res = client.post("/api/v1/orders/checkout/initiate", json={"address_id": 1}, headers=headers)
+    assert res.status_code == 201, f"Checkout failed: {res.text}"
+    return res.json()["order_id"]
+
+
+def test_vendor_can_access_seller_orders_endpoint():
+    """A. VENDOR JWT can call GET /api/v1/orders/seller and get 200."""
+    res = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=10, role="VENDOR"))
+    assert res.status_code == 200
+
+
+def test_farmer_can_access_seller_orders_endpoint():
+    """B. FARMER JWT can call GET /api/v1/orders/seller and get 200."""
+    res = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=20, role="FARMER"))
+    assert res.status_code == 200
+
+
+def test_customer_cannot_access_seller_orders_endpoint():
+    """C. CUSTOMER JWT receives 403 from GET /api/v1/orders/seller."""
+    res = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=1, role="CUSTOMER"))
+    assert res.status_code == 403
+
+
+def test_unauthenticated_seller_orders_request_is_rejected():
+    """D. No token → 401 (HTTPBearer returns 403 when header is absent)."""
+    res = client.get("/api/v1/orders/seller")
+    assert res.status_code in {401, 403}
+
+
+def test_seller_receives_only_own_order_items(monkeypatch):
+    """E. Seller 42 sees only items with seller_id=42."""
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=1,
+        items=[{"product_id": 10, "seller_id": 42, "price": "20.00"}],
+    )
+
+    res = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=42, role="VENDOR"))
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert all(it["seller_id"] == 42 for order in data for it in order["items"])
+
+
+def test_mixed_seller_order_isolation(monkeypatch):
+    """F. Order with items from seller 10 and seller 20 — each sees only their own item."""
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=2,
+        items=[
+            {"product_id": 101, "seller_id": 10, "price": "30.00"},
+            {"product_id": 102, "seller_id": 20, "price": "50.00"},
+        ],
+    )
+
+    # Seller 10
+    res10 = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=10, role="VENDOR"))
+    assert res10.status_code == 200
+    orders10 = res10.json()
+    assert len(orders10) == 1
+    items10 = orders10[0]["items"]
+    assert len(items10) == 1
+    assert items10[0]["product_id"] == 101
+    assert items10[0]["seller_id"] == 10
+
+    # Seller 20
+    res20 = client.get("/api/v1/orders/seller", headers=get_auth_headers(user_id=20, role="VENDOR"))
+    assert res20.status_code == 200
+    orders20 = res20.json()
+    assert len(orders20) == 1
+    items20 = orders20[0]["items"]
+    assert len(items20) == 1
+    assert items20[0]["product_id"] == 102
+    assert items20[0]["seller_id"] == 20
+
+
+def test_seller_cannot_override_identity_via_query_param(monkeypatch):
+    """G. seller_id query param is ignored; endpoint always uses JWT sub."""
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=3,
+        items=[{"product_id": 200, "seller_id": 55, "price": "15.00"}],
+    )
+
+    # Seller 99 tries to pass seller_id=55 as a query param
+    res = client.get(
+        "/api/v1/orders/seller?seller_id=55",
+        headers=get_auth_headers(user_id=99, role="VENDOR"),
+    )
+    assert res.status_code == 200
+    # Seller 99 has no items, so must get an empty list (not seller 55's data)
+    assert res.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Step 9: Seller Analytics API tests
+# ---------------------------------------------------------------------------
+
+def test_vendor_can_access_seller_analytics_endpoint():
+    """A. VENDOR JWT can call GET /api/v1/orders/seller/analytics and get 200."""
+    res = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=10, role="VENDOR"))
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_orders"] == 0
+    assert float(data["total_revenue"]) == 0.0
+
+
+def test_farmer_can_access_seller_analytics_endpoint():
+    """B. FARMER JWT can call GET /api/v1/orders/seller/analytics and get 200."""
+    res = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=20, role="FARMER"))
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_orders"] == 0
+    assert float(data["total_revenue"]) == 0.0
+
+
+def test_customer_cannot_access_seller_analytics_endpoint():
+    """C. CUSTOMER JWT receives 403 from GET /api/v1/orders/seller/analytics."""
+    res = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=1, role="CUSTOMER"))
+    assert res.status_code == 403
+
+
+def test_unauthenticated_seller_analytics_request_is_rejected():
+    """D. No token → 401 or 403 from HTTPBearer."""
+    res = client.get("/api/v1/orders/seller/analytics")
+    assert res.status_code in {401, 403}
+
+
+def test_seller_analytics_revenue_calculation_and_isolation(monkeypatch):
+    """E. Seller analytics calculates total orders, total revenue, monthly summary, and recent orders."""
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=1,
+        items=[
+            {"product_id": 10, "seller_id": 42, "price": "20.00"},
+            {"product_id": 11, "seller_id": 42, "price": "30.00"},
+        ],
+    )
+
+    res = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=42, role="VENDOR"))
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_orders"] == 1
+    assert float(data["total_revenue"]) == 50.0
+    assert len(data["monthly_sales_summary"]) == 1
+    assert data["monthly_sales_summary"][0]["orders"] == 1
+    assert float(data["monthly_sales_summary"][0]["revenue"]) == 50.0
+    assert len(data["recent_order_summary"]) == 1
+    assert data["recent_order_summary"][0]["items_count"] == 2
+    assert float(data["recent_order_summary"][0]["seller_revenue"]) == 50.0
+
+
+def test_mixed_seller_order_revenue_calculation(monkeypatch):
+    """F. Mixed-seller order: revenue is calculated ONLY from that seller's OrderItem subtotal, never full order total."""
+    # Order 1: Seller 10 item ($30.00) + Seller 20 item ($50.00). Total Order Amount = $80.00
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=1,
+        items=[
+            {"product_id": 101, "seller_id": 10, "price": "30.00"},
+            {"product_id": 102, "seller_id": 20, "price": "50.00"},
+        ],
+    )
+    # Order 2: Seller 10 item ($25.00)
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=2,
+        items=[
+            {"product_id": 103, "seller_id": 10, "price": "25.00"},
+        ],
+    )
+
+    # Seller 10 Analytics
+    res10 = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=10, role="VENDOR"))
+    assert res10.status_code == 200
+    data10 = res10.json()
+    assert data10["total_orders"] == 2
+    # Revenue should be 30.00 + 25.00 = 55.00 (NOT 80.00 + 25.00 = 105.00)
+    assert float(data10["total_revenue"]) == 55.0
+
+    # Seller 20 Analytics
+    res20 = client.get("/api/v1/orders/seller/analytics", headers=get_auth_headers(user_id=20, role="FARMER"))
+    assert res20.status_code == 200
+    data20 = res20.json()
+    assert data20["total_orders"] == 1
+    # Revenue should be 50.00 (NOT full order total of 80.00)
+    assert float(data20["total_revenue"]) == 50.0
+
+
+def test_seller_analytics_prevents_seller_id_query_manipulation(monkeypatch):
+    """G. Query/body seller_id is ignored; endpoint uses JWT sub."""
+    _create_order_with_seller_items(
+        monkeypatch,
+        customer_user_id=3,
+        items=[{"product_id": 200, "seller_id": 55, "price": "100.00"}],
+    )
+
+    # Seller 99 attempts to query analytics for seller_id=55 via query string
+    res = client.get(
+        "/api/v1/orders/seller/analytics?seller_id=55",
+        headers=get_auth_headers(user_id=99, role="VENDOR"),
+    )
+    assert res.status_code == 200
+    data = res.json()
+    # Seller 99 has no orders
+    assert data["total_orders"] == 0
+    assert float(data["total_revenue"]) == 0.0
+
+
+def test_admin_order_analytics_uses_whole_paid_orders_without_customer_pii():
+    db = TestingSessionLocal()
+    try:
+        db.add_all([
+            Order(
+                user_id=1,
+                status="CONFIRMED",
+                payment_status="PAID",
+                subtotal=Decimal("100.00"),
+                delivery_fee=Decimal("0.00"),
+                total_amount=Decimal("100.00"),
+            ),
+            Order(
+                user_id=2,
+                status="CANCELLED",
+                payment_status="PAID",
+                subtotal=Decimal("50.00"),
+                delivery_fee=Decimal("0.00"),
+                total_amount=Decimal("50.00"),
+            ),
+            Order(
+                user_id=3,
+                status="PAYMENT_PENDING",
+                payment_status="PAYMENT_PENDING",
+                subtotal=Decimal("75.00"),
+                delivery_fee=Decimal("0.00"),
+                total_amount=Decimal("75.00"),
+            ),
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get("/api/v1/orders/admin/analytics", headers=get_auth_headers(user_id=99, role="ADMIN"))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_orders"] == 3
+    assert data["orders_by_status"] == {"CONFIRMED": 1, "CANCELLED": 1, "PAYMENT_PENDING": 1}
+    assert data["cancelled_orders"] == 1
+    assert float(data["total_revenue"]) == 100.0
+    assert data["recent_orders"]
+    assert "user_id" not in data["recent_orders"][0]
+    assert "shipping_address" not in data["recent_orders"][0]
+
+
+@pytest.mark.parametrize("role", ["CUSTOMER", "VENDOR", "FARMER"])
+def test_non_admin_cannot_access_admin_order_analytics(role):
+    response = client.get("/api/v1/orders/admin/analytics", headers=get_auth_headers(user_id=1, role=role))
+    assert response.status_code == 403
+
+
+def _add_paid_order_with_items(db, *, created_at, items, status="CONFIRMED", payment_status="PAID"):
+    order = Order(
+        user_id=1,
+        status=status,
+        payment_status=payment_status,
+        subtotal=sum((Decimal(item["subtotal"]) for item in items), Decimal("0.00")),
+        delivery_fee=Decimal("0.00"),
+        total_amount=sum((Decimal(item["subtotal"]) for item in items), Decimal("0.00")),
+        created_at=created_at,
+    )
+    db.add(order)
+    db.flush()
+    for item in items:
+        db.add(OrderItem(
+            order_id=order.id,
+            product_id=item["product_id"],
+            seller_id=item.get("seller_id"),
+            product_name=item["product_name"],
+            unit_price=Decimal(item["unit_price"]),
+            quantity=item["quantity"],
+            subtotal=Decimal(item["subtotal"]),
+        ))
+    db.commit()
+
+
+def test_admin_business_insights_aggregate_paid_items_without_mixed_seller_double_counting():
+    now = datetime.now(UTC).replace(tzinfo=None)
+    previous_month = (now.replace(day=1) - timedelta(days=1)).replace(day=10)
+    db = TestingSessionLocal()
+    try:
+        _add_paid_order_with_items(db, created_at=now, items=[
+            {"product_id": 1, "seller_id": 10, "product_name": "Apples", "unit_price": "10.00", "quantity": 3, "subtotal": "30.00"},
+            {"product_id": 2, "seller_id": 20, "product_name": "Spinach", "unit_price": "5.00", "quantity": 2, "subtotal": "10.00"},
+        ])
+        _add_paid_order_with_items(db, created_at=previous_month, items=[
+            {"product_id": 1, "seller_id": 10, "product_name": "Apples", "unit_price": "10.00", "quantity": 8, "subtotal": "80.00"},
+        ])
+        _add_paid_order_with_items(db, created_at=now, status="CANCELLED", items=[
+            {"product_id": 3, "seller_id": 30, "product_name": "Cancelled", "unit_price": "99.00", "quantity": 99, "subtotal": "9801.00"},
+        ])
+        _add_paid_order_with_items(db, created_at=now, payment_status="PAYMENT_PENDING", items=[
+            {"product_id": 4, "seller_id": 40, "product_name": "Unpaid", "unit_price": "50.00", "quantity": 9, "subtotal": "450.00"},
+        ])
+    finally:
+        db.close()
+
+    response = client.get("/api/v1/orders/admin/business-insights", headers=get_auth_headers(user_id=99, role="ADMIN"))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [entry["seller_id"] for entry in data["vendor_sales"]] == [10, 20]
+    assert data["vendor_sales"][0] == {"seller_id": 10, "orders_count": 2, "units_sold": 11, "revenue": "110.00"}
+    assert data["product_sales"][0]["product_id"] == 1
+    assert data["product_sales"][0]["units_sold"] == 11
+    assert data["product_sales"][0]["revenue"] == "110.00"
+    assert data["sales_decline_available"] is True
+    assert data["sales_declines"] == [{
+        "product_id": 1,
+        "product_name": "Apples",
+        "current_period_quantity": 3,
+        "previous_period_quantity": 8,
+        "percentage_change": "-62.50",
+    }]
+    assert "user_id" not in data["vendor_sales"][0]
+
+
+@pytest.mark.parametrize("role", ["CUSTOMER", "VENDOR", "FARMER"])
+def test_non_admin_cannot_access_admin_business_insights(role):
+    response = client.get("/api/v1/orders/admin/business-insights", headers=get_auth_headers(user_id=1, role=role))
+    assert response.status_code == 403

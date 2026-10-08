@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { logout, updateProfile } from "@/store/slices/authSlice";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
@@ -12,6 +13,7 @@ import { getApiErrorMessage } from "@/utils/errorUtils";
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -19,6 +21,7 @@ export default function ProfilePage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
+  const [showPasswords, setShowPasswords] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -151,18 +154,33 @@ export default function ProfilePage() {
       </form>
 
       <form onSubmit={handlePasswordChange} className="card space-y-4" noValidate>
-        <div>
-          <h2 className="font-display text-lg font-semibold text-primary-900">Security</h2>
-          <p className="mt-1 text-sm text-gray-500">Change your password using your current password for verification.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-primary-900">{t("security")}</h2>
+            <p className="mt-1 text-sm text-gray-500">{t("securityDescription")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPasswords((visible) => !visible)}
+            aria-pressed={showPasswords}
+            className="shrink-0 text-sm font-semibold text-primary-700 hover:underline"
+          >
+            {showPasswords ? t("hidePasswords") : t("showPasswords")}
+          </button>
         </div>
 
         {passwordError && <p className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{passwordError}</p>}
 
-        <Input id="current_password" name="current_password" type="password" autoComplete="current-password" label="Current Password" value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} />
-        <Input id="new_password" name="new_password" type="password" autoComplete="new-password" label="New Password" value={passwordForm.new_password} onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))} />
-        <Input id="confirm_password" name="confirm_password" type="password" autoComplete="new-password" label="Confirm New Password" value={passwordForm.confirm_password} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))} />
+        <Input id="current_password" name="current_password" type={showPasswords ? "text" : "password"} autoComplete="current-password" label={t("currentPassword")} value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} />
+        <Input id="new_password" name="new_password" type={showPasswords ? "text" : "password"} autoComplete="new-password" label={t("newPassword")} value={passwordForm.new_password} onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))} />
+        <Input id="confirm_password" name="confirm_password" type={showPasswords ? "text" : "password"} autoComplete="new-password" label={t("confirmNewPassword")} value={passwordForm.confirm_password} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))} />
 
-        <Button type="submit" isLoading={isChangingPassword}>Change Password</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link to={`/forgot-password?email=${encodeURIComponent(user.email)}`} className="text-sm font-semibold text-primary-700 hover:underline">
+            {t("forgotPassword")}
+          </Link>
+          <Button type="submit" isLoading={isChangingPassword}>{t("changePassword")}</Button>
+        </div>
       </form>
 
       <div className="card flex items-center justify-between gap-4">

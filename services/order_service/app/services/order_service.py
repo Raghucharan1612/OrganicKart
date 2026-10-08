@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import logging
 from time import perf_counter
@@ -16,6 +16,18 @@ from app.models.order import Order, OrderItem
 from app.models.payment import PaymentAttempt, PaymentStatus
 from app.repositories.cart_repository import CartRepository
 from app.repositories.order_repository import OrderRepository
+from app.schemas.order import (
+    AdminMonthlySalesSummary,
+    AdminBusinessInsightsResponse,
+    AdminOrderAnalyticsResponse,
+    AdminProductSalesInsight,
+    AdminRecentOrderSummary,
+    AdminSalesDeclineInsight,
+    AdminVendorSalesInsight,
+    MonthlySalesSummary,
+    RecentOrderSummary,
+    SellerAnalyticsResponse,
+)
 from app.services.razorpay_service import RazorpayService
 
 logger = logging.getLogger(__name__)
@@ -28,6 +40,212 @@ class OrderService:
 
     def list_orders(self, user_id: int) -> list[Order]:
         return self.order_repo.get_by_user(user_id)
+
+    def list_seller_orders(self, seller_id: int) -> list[Order]:
+        return self.order_repo.get_by_seller(seller_id)
+
+    def get_seller_analytics(self, seller_id: int) -> SellerAnalyticsResponse:
+        orders = self.order_repo.get_by_seller(seller_id)
+        total_orders = 0
+        total_revenue = Decimal("0.00")
+        monthly_stats: dict[str, dict[str, Any]] = {}
+        recent_orders: list[RecentOrderSummary] = []
+
+        for order in orders:
+            seller_items = [item for item in order.items if item.seller_id == seller_id]
+            if not seller_items:
+                continue
+
+            seller_subtotal = sum((item.subtotal for item in seller_items), Decimal("0.00"))
+
+            if order.status != "CANCELLED":
+                total_orders += 1
+                total_revenue += seller_subtotal
+
+                month_key = order.created_at.strftime("%Y-%m") if order.created_at else datetime.now(UTC).strftime("%Y-%m")
+                if month_key not in monthly_stats:
+                    monthly_stats[month_key] = {"orders": 0, "revenue": Decimal("0.00")}
+                monthly_stats[month_key]["orders"] += 1
+                monthly_stats[month_key]["revenue"] += seller_subtotal
+
+            recent_orders.append(
+                RecentOrderSummary(
+                    order_id=order.id,
+                    created_at=order.created_at,
+                    status=order.status,
+                    payment_status=order.payment_status,
+                    items_count=len(seller_items),
+                    seller_revenue=seller_subtotal,
+                )
+            )
+
+        monthly_sales_summary = [
+            MonthlySalesSummary(
+                month=month,
+                orders=data["orders"],
+                revenue=data["revenue"],
+            )
+            for month, data in monthly_stats.items()
+        ]
+        monthly_orders = {month: data["orders"] for month, data in monthly_stats.items()}
+        monthly_revenue = {month: data["revenue"] for month, data in monthly_stats.items()}
+
+        return SellerAnalyticsResponse(
+            total_orders=total_orders,
+            total_revenue=total_revenue,
+            monthly_sales_summary=monthly_sales_summary,
+            monthly_orders=monthly_orders,
+            monthly_revenue=monthly_revenue,
+            recent_order_summary=recent_orders[:10],
+            recent_orders_summary=recent_orders[:10],
+        )
+
+    def get_admin_analytics(self) -> AdminOrderAnalyticsResponse:
+        """Aggregate whole-order analytics for ADMIN without exposing customer PII."""
+        orders = self.order_repo.get_all()
+        orders_by_status: dict[str, int] = {}
+        payment_status_breakdown: dict[str, int] = {}
+        monthly_stats: dict[str, dict[str, Any]] = {}
+        recent_orders: list[AdminRecentOrderSummary] = []
+        total_revenue = Decimal("0.00")
+
+        for order in orders:
+            orders_by_status[order.status] = orders_by_status.get(order.status, 0) + 1
+            payment_status_breakdown[order.payment_status] = payment_status_breakdown.get(order.payment_status, 0) + 1
+            recent_orders.append(
+                AdminRecentOrderSummary(
+                    order_id=order.id,
+                    created_at=order.created_at,
+                    status=order.status,
+                    payment_status=order.payment_status,
+                    items_count=len(order.items),
+                    total_amount=order.total_amount,
+                )
+            )
+
+            # Whole-order revenue is authoritative only after payment and is
+            # excluded when the existing cancellation policy marks it cancelled.
+            if order.payment_status == PaymentStatus.PAID.value and order.status != "CANCELLED":
+                total_revenue += order.total_amount
+                month_key = order.created_at.strftime("%Y-%m") if order.created_at else datetime.now(UTC).strftime("%Y-%m")
+                if month_key not in monthly_stats:
+                    monthly_stats[month_key] = {"orders": 0, "revenue": Decimal("0.00")}
+                monthly_stats[month_key]["orders"] += 1
+                monthly_stats[month_key]["revenue"] += order.total_amount
+
+        return AdminOrderAnalyticsResponse(
+            total_orders=len(orders),
+            orders_by_status=orders_by_status,
+            payment_status_breakdown=payment_status_breakdown,
+            cancelled_orders=orders_by_status.get("CANCELLED", 0),
+            total_revenue=total_revenue,
+            monthly_sales_summary=[
+                AdminMonthlySalesSummary(month=month, orders=data["orders"], revenue=data["revenue"])
+                for month, data in sorted(monthly_stats.items(), reverse=True)
+            ],
+            recent_orders=recent_orders[:10],
+        )
+
+    def get_admin_business_insights(self) -> AdminBusinessInsightsResponse:
+        """Read-only, paid non-cancelled order-item aggregates for ADMIN."""
+        now = datetime.now(UTC)
+        current_period = now.strftime("%Y-%m")
+        previous_period_date = (now.replace(day=1) - timedelta(days=1))
+        previous_period = previous_period_date.strftime("%Y-%m")
+        vendor_stats: dict[int, dict[str, Any]] = {}
+        product_stats: dict[int, dict[str, Any]] = {}
+        current_quantities: dict[int, int] = {}
+        previous_quantities: dict[int, int] = {}
+        product_names: dict[int, str] = {}
+        has_current_period_sales = False
+        has_previous_period_sales = False
+
+        for order in self.order_repo.get_all():
+            if order.payment_status != PaymentStatus.PAID.value or order.status == "CANCELLED":
+                continue
+            order_period = order.created_at.strftime("%Y-%m") if order.created_at else None
+            for item in order.items:
+                if item.product_id is None:
+                    continue
+                product_names.setdefault(item.product_id, item.product_name)
+                product = product_stats.setdefault(
+                    item.product_id,
+                    {"name": item.product_name, "units_sold": 0, "revenue": Decimal("0.00")},
+                )
+                product["units_sold"] += item.quantity
+                product["revenue"] += item.subtotal
+
+                if item.seller_id is not None:
+                    vendor = vendor_stats.setdefault(
+                        item.seller_id,
+                        {"order_ids": set(), "units_sold": 0, "revenue": Decimal("0.00")},
+                    )
+                    vendor["order_ids"].add(order.id)
+                    vendor["units_sold"] += item.quantity
+                    vendor["revenue"] += item.subtotal
+
+                if order_period == current_period:
+                    has_current_period_sales = True
+                    current_quantities[item.product_id] = current_quantities.get(item.product_id, 0) + item.quantity
+                elif order_period == previous_period:
+                    has_previous_period_sales = True
+                    previous_quantities[item.product_id] = previous_quantities.get(item.product_id, 0) + item.quantity
+
+        vendor_sales = sorted(
+            (
+                AdminVendorSalesInsight(
+                    seller_id=seller_id,
+                    orders_count=len(data["order_ids"]),
+                    units_sold=data["units_sold"],
+                    revenue=data["revenue"],
+                )
+                for seller_id, data in vendor_stats.items()
+            ),
+            key=lambda entry: (-entry.revenue, entry.seller_id),
+        )[:10]
+        product_sales = sorted(
+            (
+                AdminProductSalesInsight(
+                    product_id=product_id,
+                    product_name=data["name"],
+                    units_sold=data["units_sold"],
+                    revenue=data["revenue"],
+                )
+                for product_id, data in product_stats.items()
+            ),
+            key=lambda entry: (-entry.units_sold, -entry.revenue, entry.product_id),
+        )[:10]
+
+        sales_decline_available = has_current_period_sales and has_previous_period_sales
+        sales_declines: list[AdminSalesDeclineInsight] = []
+        if sales_decline_available:
+            for product_id, previous_quantity in previous_quantities.items():
+                current_quantity = current_quantities.get(product_id, 0)
+                if current_quantity >= previous_quantity:
+                    continue
+                percentage_change = (
+                    (Decimal(current_quantity - previous_quantity) / Decimal(previous_quantity)) * Decimal("100")
+                ).quantize(Decimal("0.01"))
+                sales_declines.append(
+                    AdminSalesDeclineInsight(
+                        product_id=product_id,
+                        product_name=product_names.get(product_id, "Unknown product"),
+                        current_period_quantity=current_quantity,
+                        previous_period_quantity=previous_quantity,
+                        percentage_change=percentage_change,
+                    )
+                )
+            sales_declines.sort(key=lambda entry: (entry.percentage_change, entry.product_id))
+
+        return AdminBusinessInsightsResponse(
+            vendor_sales=vendor_sales,
+            product_sales=product_sales,
+            current_period=current_period,
+            previous_period=previous_period,
+            sales_decline_available=sales_decline_available,
+            sales_declines=sales_declines[:10],
+        )
+
 
     def get_order(self, user_id: int, order_id: int) -> Order:
         order = self.order_repo.get_by_id(order_id)
@@ -69,6 +287,7 @@ class OrderService:
             subtotal += item_subtotal
             snapshots.append({
                 "product_id": item.product_id,
+                "seller_id": product.get("seller_id"),
                 "product_name": product.get("name") or item.product_name,
                 "unit_price": unit_price,
                 "quantity": item.quantity,

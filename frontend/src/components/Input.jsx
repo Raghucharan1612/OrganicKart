@@ -3,7 +3,7 @@
  * Every auth/profile/address form uses this instead of hand-rolled
  * <input> + <label> markup, so styling and error handling stay consistent.
  */
-export default function Input({ label, id, error, className = "", ...rest }) {
+export default function Input({ label, id, error, className = "", inputClassName = "", ...rest }) {
   return (
     <div className={className}>
       {label && (
@@ -11,7 +11,7 @@ export default function Input({ label, id, error, className = "", ...rest }) {
           {label}
         </label>
       )}
-      <input id={id} className={`input-field ${error ? "border-red-400 focus:ring-red-100 focus:border-red-400" : ""}`} {...rest} />
+      <input id={id} className={`input-field ${inputClassName} ${error ? "border-red-400 focus:ring-red-100 focus:border-red-400" : ""}`} {...rest} />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

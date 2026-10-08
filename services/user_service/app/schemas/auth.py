@@ -14,7 +14,7 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=150)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    phone: str | None = Field(default=None, max_length=20)
+    phone: str = Field(min_length=7, max_length=20)
     role: RoleEnum = RoleEnum.CUSTOMER
 
     @field_validator("role")
@@ -78,6 +78,24 @@ class UserProfileUpdate(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must contain at least one digit.")
+        if not any(char.isalpha() for char in value):
+            raise ValueError("Password must contain at least one letter.")
+        return value
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=32, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
 
     @field_validator("new_password")

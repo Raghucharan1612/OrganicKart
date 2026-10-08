@@ -59,6 +59,7 @@ def test_duplicate_email_returns_conflict():
         "full_name": "Jane Doe",
         "email": "jane@example.com",
         "password": "Secret123",
+        "phone": "1234567890",
         "role": "CUSTOMER",
     }
     client.post("/api/v1/auth/register", json=payload)
@@ -74,6 +75,15 @@ def test_invalid_registration_data():
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
+def test_registration_requires_phone_number():
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"full_name": "Jane Doe", "email": "no-phone@example.com", "password": "Secret123", "role": "CUSTOMER"},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
 def test_login_success():
     client.post(
         "/api/v1/auth/register",
@@ -81,6 +91,7 @@ def test_login_success():
             "full_name": "Jane Doe",
             "email": "jane@example.com",
             "password": "Secret123",
+            "phone": "1234567890",
             "role": "CUSTOMER",
         },
     )
@@ -101,6 +112,7 @@ def test_invalid_password_fails():
             "full_name": "Jane Doe",
             "email": "jane@example.com",
             "password": "Secret123",
+            "phone": "1234567890",
             "role": "CUSTOMER",
         },
     )
@@ -147,6 +159,7 @@ def test_current_user_endpoint():
             "full_name": "Jane Doe",
             "email": "jane@example.com",
             "password": "Secret123",
+            "phone": "1234567890",
             "role": "CUSTOMER",
         },
     )
@@ -170,6 +183,7 @@ def test_role_handling_and_unauthorized_access():
             "full_name": "Jane Doe",
             "email": "jane@example.com",
             "password": "Secret123",
+            "phone": "1234567890",
             "role": "CUSTOMER",
         },
     )
@@ -199,6 +213,7 @@ def test_get_my_profile_endpoint():
             "full_name": "Jane Doe",
             "email": "jane@example.com",
             "password": "Secret123",
+            "phone": "1234567890",
             "role": "CUSTOMER",
         },
     )
@@ -246,7 +261,7 @@ def test_update_my_profile_endpoint():
 def test_authenticated_user_can_change_password():
     client.post(
         "/api/v1/auth/register",
-        json={"full_name": "Jane Doe", "email": "change@example.com", "password": "Secret123", "role": "CUSTOMER"},
+        json={"full_name": "Jane Doe", "email": "change@example.com", "password": "Secret123", "phone": "1234567890", "role": "CUSTOMER"},
     )
     token = client.post("/api/v1/auth/login", json={"email": "change@example.com", "password": "Secret123"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -279,6 +294,36 @@ def test_change_password_rejects_incorrect_current_or_invalid_new_password():
 
     assert incorrect_current.status_code == status.HTTP_400_BAD_REQUEST
     assert invalid_new.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_password_reset_uses_expiring_single_use_token(monkeypatch):
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    client.post(
+        "/api/v1/auth/register",
+        json={"full_name": "Jane Doe", "email": "forgot@example.com", "password": "Secret123", "phone": "1234567890", "role": "CUSTOMER"},
+    )
+
+    requested = client.post("/api/v1/auth/password-reset/request", json={"email": "forgot@example.com"})
+    assert requested.status_code == status.HTTP_200_OK
+    reset_token = requested.json()["development_reset_token"]
+    assert reset_token
+
+    reset = client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"token": reset_token, "new_password": "ResetSecret456"},
+    )
+    assert reset.status_code == status.HTTP_200_OK
+    assert client.post("/api/v1/auth/password-reset/confirm", json={"token": reset_token, "new_password": "ResetSecret456"}).status_code == status.HTTP_400_BAD_REQUEST
+    assert client.post("/api/v1/auth/login", json={"email": "forgot@example.com", "password": "ResetSecret456"}).status_code == status.HTTP_200_OK
+    assert client.post("/api/v1/auth/login", json={"email": "forgot@example.com", "password": "Secret123"}).status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_password_reset_request_does_not_reveal_unknown_email(monkeypatch):
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    response = client.post("/api/v1/auth/password-reset/request", json={"email": "unknown@example.com"})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["development_reset_token"] is None
 
 
 def _register_and_login(email: str, role: str = "CUSTOMER") -> dict:
