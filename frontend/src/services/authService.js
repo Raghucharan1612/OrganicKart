@@ -13,6 +13,10 @@ const authService = {
   logout: () => apiClient.post("/auth/logout").then((res) => res.data),
 
   getCurrentUser: () => apiClient.get("/auth/me").then((res) => res.data),
+
+  requestPasswordReset: (payload) => apiClient.post("/auth/password-reset/request", payload).then((res) => res.data),
+
+  resetPassword: (payload) => apiClient.post("/auth/password-reset/confirm", payload).then((res) => res.data),
 };
 
 export default authService;

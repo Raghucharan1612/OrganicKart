@@ -95,7 +95,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-cream flex flex-col">
       {/* Category Navigation Bar (Horizontally Scrollable) */}
       <div className="border-b border-gray-200/80 bg-white sticky top-[105px] z-30 shadow-xs">
-        <div className="mx-auto max-w-7xl px-4 py-2.5 sm:px-6 lg:px-8">
+        <div className="w-full px-4 py-2.5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">
             <Link
               to="/products"
@@ -118,7 +118,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-10 flex-1 w-full">
+      <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-10 flex-1">
         {/* HERO SECTION */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary-950 via-primary-900 to-primary-950 p-6 sm:p-10 text-white shadow-xl">
           {/* Subtle background glow circles */}
@@ -255,7 +255,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 items-stretch">
+          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 items-stretch">
             {categories.map((category) => (
               <Link
                 key={category.id}
@@ -306,7 +306,7 @@ export default function HomePage() {
               <p>No products available right now. Check back soon!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {featured.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -363,7 +363,7 @@ export default function HomePage() {
 
       {/* FULL FOOTER */}
       <footer className="mt-16 border-t border-gray-200 bg-white text-gray-700">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full px-4 py-12 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
             {/* Column 1: Brand */}
             <div className="lg:col-span-2 space-y-4">

@@ -29,7 +29,7 @@ export default function OrdersPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4">
+      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-4">
         <div className="card animate-pulse">
           <div className="h-6 w-48 rounded bg-gray-200" />
           <div className="mt-4 h-4 w-64 rounded bg-gray-200" />
@@ -46,7 +46,7 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6">
       <div className="card">
         <div className="flex items-center justify-between gap-3">
           <div>

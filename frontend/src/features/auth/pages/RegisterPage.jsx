@@ -6,21 +6,23 @@ import { registerUser, clearAuthError } from "@/store/slices/authSlice";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import FormError from "@/components/FormError";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { validateEmail, validatePassword, validateRequired, validatePhone } from "@/utils/validators";
 
 // Roles a person can self-select at signup. Must mirror the backend's
 // PUBLIC_SIGNUP_ROLES — ADMIN/SUPER_ADMIN are provisioned internally only.
 const SIGNUP_ROLES = [
-  { value: "CUSTOMER", label: "Customer — shop for organic produce" },
-  { value: "FARMER", label: "Farmer — sell what you grow" },
-  { value: "VENDOR", label: "Vendor — run an organic store" },
-  { value: "DELIVERY_PARTNER", label: "Delivery Partner — fulfil deliveries" },
+  { value: "CUSTOMER", translationKey: "customerRole" },
+  { value: "FARMER", translationKey: "farmerRole" },
+  { value: "VENDOR", translationKey: "vendorRole" },
+  { value: "DELIVERY_PARTNER", translationKey: "deliveryRole" },
 ];
 
 export default function RegisterPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { status, error } = useSelector((state) => state.auth);
+  const { t } = useLanguage();
 
   const [form, setForm] = useState({
     full_name: "",
@@ -43,7 +45,7 @@ export default function RegisterPage() {
       full_name: validateRequired(form.full_name, "Full name"),
       email: validateEmail(form.email),
       password: validatePassword(form.password),
-      phone: validatePhone(form.phone),
+      phone: form.phone.trim() ? validatePhone(form.phone) : t("phoneRequired"),
     };
     setFieldErrors(errors);
     return Object.values(errors).every((msg) => !msg);
@@ -53,7 +55,7 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!validate()) return;
 
-    const payload = { ...form, phone: form.phone || undefined };
+    const payload = form;
     const result = await dispatch(registerUser(payload));
 
     if (registerUser.fulfilled.match(result)) {
@@ -65,8 +67,8 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto max-w-md">
       <div className="card">
-        <h1 className="font-display text-2xl font-bold text-primary-900">Create your account</h1>
-        <p className="mt-1 text-sm text-gray-500">Join OrganicKart's organic marketplace.</p>
+        <h1 className="font-display text-2xl font-bold text-primary-900">{t("createAccount")}</h1>
+        <p className="mt-1 text-sm text-gray-500">{t("joinMarketplace")}</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
           <FormError message={error} />
@@ -74,7 +76,7 @@ export default function RegisterPage() {
           <Input
             id="full_name"
             name="full_name"
-            label="Full name"
+            label={t("fullName")}
             placeholder="Jane Doe"
             value={form.full_name}
             onChange={handleChange}
@@ -85,7 +87,7 @@ export default function RegisterPage() {
             id="email"
             name="email"
             type="email"
-            label="Email address"
+            label={t("email")}
             placeholder="you@example.com"
             value={form.email}
             onChange={handleChange}
@@ -95,8 +97,8 @@ export default function RegisterPage() {
           <Input
             id="phone"
             name="phone"
-            label="Phone (optional)"
-            placeholder="+91 98765 43210"
+            label={t("phone")}
+            placeholder={t("phonePlaceholder")}
             value={form.phone}
             onChange={handleChange}
             error={fieldErrors.phone}
@@ -106,8 +108,8 @@ export default function RegisterPage() {
             id="password"
             name="password"
             type="password"
-            label="Password"
-            placeholder="At least 8 characters"
+            label={t("yourPassword")}
+            placeholder={t("passwordHint")}
             value={form.password}
             onChange={handleChange}
             error={fieldErrors.password}
@@ -115,7 +117,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-gray-700">
-              I am signing up as
+              {t("signupRole")}
             </label>
             <select
               id="role"
@@ -126,21 +128,21 @@ export default function RegisterPage() {
             >
               {SIGNUP_ROLES.map((r) => (
                 <option key={r.value} value={r.value}>
-                  {r.label}
+                  {t(r.translationKey)}
                 </option>
               ))}
             </select>
           </div>
 
           <Button type="submit" isLoading={status === "loading"} className="w-full">
-            Create account
+            {t("createAccountButton")}
           </Button>
         </form>
 
         <p className="mt-5 text-center text-sm text-gray-500">
-          Already have an account?{" "}
+          {t("existingAccount")} {" "}
           <Link to="/login" className="font-medium text-primary-700 hover:underline">
-            Log in
+            {t("logIn")}
           </Link>
         </p>
       </div>

@@ -6,6 +6,7 @@ import ProductForm from "@/features/catalog/components/ProductForm";
 import Button from "@/components/Button";
 import Spinner from "@/components/Spinner";
 import EmptyState from "@/components/EmptyState";
+import SellerSubNav from "@/components/SellerSubNav";
 import { getApiErrorMessage } from "@/utils/errorUtils";
 
 export default function MyProductsPage() {
@@ -85,7 +86,11 @@ export default function MyProductsPage() {
   const editingProduct = typeof formMode === "number" ? products.find((p) => p.id === formMode) : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="min-h-screen bg-slate-50">
+      {/* Seller secondary nav — consistent across all seller pages */}
+      <SellerSubNav activeTab="products" />
+
+      <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-primary-900">My Products</h1>
@@ -208,6 +213,7 @@ export default function MyProductsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

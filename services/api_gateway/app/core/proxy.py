@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/v1")
 SERVICE_MAP = {
     "auth": settings.AUTH_SERVICE_URL,
     "users": settings.AUTH_SERVICE_URL,
+    "ai": settings.AI_SERVICE_URL,
     "products": settings.PRODUCT_SERVICE_URL,
     "categories": settings.PRODUCT_SERVICE_URL,
     "cart": settings.ORDER_SERVICE_URL,
@@ -55,6 +56,14 @@ async def _forward_request(request: Request, service_name: str, path: str) -> An
     headers = {k: v for k, v in request.headers.items() if k.lower() not in {"host", "content-length"}}
     body = await request.body()
 
+    if service_name == "ai":
+        logger.warning(
+            "AI_GATEWAY_TRACE step=forward_start method=%s path=%s authorization_present=%s",
+            request.method,
+            path,
+            any(key.lower() == "authorization" for key in headers),
+        )
+
     try:
         async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT_SECONDS) as client:
             response = await client.request(
@@ -63,6 +72,14 @@ async def _forward_request(request: Request, service_name: str, path: str) -> An
                 headers=headers,
                 content=body if body else None,
                 params=request.query_params,
+            )
+
+        if service_name == "ai":
+            logger.warning(
+                "AI_GATEWAY_TRACE step=upstream_response method=%s path=%s status=%s",
+                request.method,
+                path,
+                response.status_code,
             )
     except httpx.HTTPError as exc:
         cause = exc.__cause__
@@ -161,3 +178,13 @@ async def notifications_root_proxy(request: Request) -> Any:
 @router.api_route("/notifications/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def notifications_proxy(request: Request, path: str) -> Any:
     return await _forward_request(request, "notifications", _service_path("/api/v1/notifications", path))
+
+
+@router.api_route("/ai/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def ai_proxy(request: Request, path: str) -> Any:
+    return await _forward_request(request, "ai", _service_path("/api/v1/ai", path))
+
+
+@router.api_route("/ai", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def ai_root_proxy(request: Request) -> Any:
+    return await _forward_request(request, "ai", "/api/v1/ai")

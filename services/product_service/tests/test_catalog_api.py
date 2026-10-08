@@ -740,3 +740,37 @@ def test_farmer_role_product_creation_and_jwt_seller_derivation():
     assert data["certification"] == "PENDING"
     assert data["unit"] == "100g"
     assert data["price"] == "470.00"
+
+
+def test_admin_low_stock_endpoint_uses_fixed_active_inventory_threshold():
+    category = client.post("/api/v1/categories/", json={"name": "Low stock"}, headers=_admin_headers()).json()
+    admin_headers = _admin_headers()
+    low = client.post(
+        "/api/v1/products/",
+        json={"category_id": category["id"], "name": "Low Apples", "price": "20.00", "stock_quantity": 10, "unit": "kg"},
+        headers=admin_headers,
+    ).json()
+    above = client.post(
+        "/api/v1/products/",
+        json={"category_id": category["id"], "name": "Enough Apples", "price": "20.00", "stock_quantity": 11, "unit": "kg"},
+        headers=admin_headers,
+    ).json()
+    inactive = client.post(
+        "/api/v1/products/",
+        json={"category_id": category["id"], "name": "Inactive Apples", "price": "20.00", "stock_quantity": 1, "unit": "kg"},
+        headers=admin_headers,
+    ).json()
+    assert client.delete(f"/api/v1/products/{inactive['id']}", headers=admin_headers).status_code == 200
+
+    response = client.get("/api/v1/products/admin/low-stock", headers=admin_headers)
+
+    assert response.status_code == 200
+    assert response.json()["threshold"] == 10
+    assert [item["id"] for item in response.json()["items"]] == [low["id"]]
+    assert above["id"] not in [item["id"] for item in response.json()["items"]]
+
+
+@pytest.mark.parametrize("role", ["CUSTOMER", "VENDOR", "FARMER"])
+def test_non_admin_cannot_access_low_stock_endpoint(role):
+    response = client.get("/api/v1/products/admin/low-stock", headers={"Authorization": "Bearer " + _token(role, 88)})
+    assert response.status_code == 403

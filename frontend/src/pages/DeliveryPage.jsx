@@ -135,7 +135,7 @@ export default function DeliveryPage() {
     ).length;
 
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-12">
+      <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6 pb-12">
         {/* Header & Role Badge */}
         <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
+import geocodingService from "@/services/geocodingService";
 import { validateRequired } from "@/utils/validators";
 
 const EMPTY_FORM = {
@@ -51,9 +52,17 @@ export default function AddressForm({ initialValues, onSubmit, onCancel, isSavin
     }
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setForm((current) => ({ ...current, latitude: coords.latitude, longitude: coords.longitude }));
-        setIsLocating(false);
+      async ({ coords }) => {
+        const coordinates = { latitude: coords.latitude, longitude: coords.longitude };
+        try {
+          const address = await geocodingService.reverse(coords.latitude, coords.longitude);
+          setForm((current) => ({ ...current, ...address, ...coordinates }));
+        } catch {
+          setForm((current) => ({ ...current, ...coordinates }));
+          setLocationError("Location found, but its address could not be filled automatically. Please complete the address fields.");
+        } finally {
+          setIsLocating(false);
+        }
       },
       (error) => {
         const messages = {
@@ -137,11 +146,18 @@ export default function AddressForm({ initialValues, onSubmit, onCancel, isSavin
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-primary-900">Use your live location, then confirm the editable address fields above.</p>
           <Button type="button" variant="secondary" onClick={useCurrentLocation} isLoading={isLocating}>
-            {isLocating ? "Locating…" : "Use my current location"}
+            {isLocating ? "Finding address…" : "Use my current location"}
           </Button>
         </div>
         {form.latitude != null && form.longitude != null && (
-          <p className="mt-2 text-xs text-primary-700">Location found: {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}. Please confirm the postal address before saving.</p>
+          <>
+            <p className="mt-2 text-xs text-primary-700">
+              Location found: {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}. Please confirm the postal address before saving.
+            </p>
+            <p className="mt-1 text-xs text-primary-700">
+              Address details by <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">OpenStreetMap contributors</a>.
+            </p>
+          </>
         )}
         {locationError && <p className="mt-2 text-xs text-red-600">{locationError}</p>}
       </div>

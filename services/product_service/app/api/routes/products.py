@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_optional_actor, require_admin, require_catalog_manager
 from app.database.database import get_db
-from app.schemas.products import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.products import LowStockProductsResponse, ProductCreate, ProductResponse, ProductUpdate
 from app.services.product_service import ProductService
 
 router = APIRouter(
@@ -77,6 +77,17 @@ def get_my_products(
         customer_visible=False,
     )
     return items
+
+
+@router.get("/admin/low-stock", response_model=LowStockProductsResponse)
+def get_low_stock_products(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    return LowStockProductsResponse(
+        threshold=ProductService.LOW_STOCK_THRESHOLD,
+        items=ProductService.get_low_stock_active_products(db),
+    )
 
 
 @router.get("/{product_id}", response_model=ProductResponse)

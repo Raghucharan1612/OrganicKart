@@ -17,6 +17,7 @@ const CERTIFICATION_TABS = [
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   // Stats state
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
@@ -170,7 +171,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6">
       {/* Header Banner - Clean White & Organic Green */}
       <div className="bg-white border border-emerald-100/90 shadow-sm p-6 rounded-2xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -186,6 +187,15 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("open-admin-ai"))}
+                className="inline-flex items-center gap-1.5 border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-900 rounded-xl"
+              >
+                📊 Ask AI
+              </button>
+            )}
             <Link
               to="/admin/categories"
               className="inline-flex items-center gap-1.5 bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm"

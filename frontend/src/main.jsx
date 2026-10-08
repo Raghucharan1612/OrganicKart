@@ -4,13 +4,16 @@ import { Provider } from "react-redux";
 import { Toaster } from "react-hot-toast";
 import App from "./App";
 import { store } from "./store/store";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <Provider store={store}>
-      <App />
-      <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
+      <LanguageProvider>
+        <App />
+        <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
+      </LanguageProvider>
     </Provider>
   </React.StrictMode>
 );

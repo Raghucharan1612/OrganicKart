@@ -24,6 +24,10 @@ const orderService = {
   verifyPayment: (payload) => apiClient.post("/orders/payments/verify", payload).then((res) => res.data),
 
   cancelOrder: (id) => apiClient.post(`/orders/${id}/cancel`).then((res) => res.data),
+
+  getSellerOrders: () => apiClient.get("/orders/seller").then((res) => res.data),
+
+  getSellerAnalytics: () => apiClient.get("/orders/seller/analytics").then((res) => res.data),
 };
 
 export default orderService;

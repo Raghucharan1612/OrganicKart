@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.database.session import Base, engine
+from app.models.password_reset_token import PasswordResetToken
 
 Base.metadata.create_all(bind=engine)
 

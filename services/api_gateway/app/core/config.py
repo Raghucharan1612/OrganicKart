@@ -7,11 +7,12 @@ class Settings(BaseSettings):
     SERVICE_PORT: int = 8000
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     AUTH_SERVICE_URL: str = "http://localhost:8001"
+    AI_SERVICE_URL: str = "http://localhost:8002"
     PRODUCT_SERVICE_URL: str = "http://localhost:8003"
     ORDER_SERVICE_URL: str = "http://localhost:8004"
     DELIVERY_SERVICE_URL: str = "http://localhost:8005"
     NOTIFICATION_SERVICE_URL: str = "http://localhost:8006"
-    REQUEST_TIMEOUT_SECONDS: int = 15
+    REQUEST_TIMEOUT_SECONDS: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",
