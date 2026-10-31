@@ -38,6 +38,13 @@ class Product(Base):
         back_populates="products"
     )
 
+    images: Mapped[list["ProductImage"]] = relationship(
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.id",
+    )
+
     name: Mapped[str] = mapped_column(
         String(150),
         nullable=False,

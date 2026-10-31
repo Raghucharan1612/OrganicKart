@@ -29,6 +29,8 @@ class OllamaService:
             "prompt": prompt,
             "system": system_prompt or "You are OrganicKart's AI assistant.",
             "stream": False,
+            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+            "think": settings.OLLAMA_THINK,
             "options": {"num_predict": settings.OLLAMA_NUM_PREDICT},
         }
 
@@ -70,6 +72,18 @@ class OllamaService:
             data = response.json()
             answer = data.get("response", "").strip()
             if not answer:
+                # Thinking models may output reasoning tokens only and leave
+                # response empty — log the thinking content and surface a
+                # graceful error rather than propagating the raw Ollama error.
+                thinking = data.get("thinking", "")
+                if thinking:
+                    logger.warning(
+                        "Ollama returned empty response with thinking tokens model=%s "
+                        "done_reason=%s thinking_preview=%s",
+                        self.model,
+                        data.get("done_reason"),
+                        thinking[:120],
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail="LLM engine returned an empty response.",

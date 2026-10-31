@@ -25,12 +25,16 @@ export default function VendorAIAssistant() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   const isVendorOrFarmer =
     isAuthenticated && (user?.role === "VENDOR" || user?.role === "FARMER");
 
+  // Auto scroll to latest message — direct scrollTop avoids forced reflow
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -148,7 +152,7 @@ export default function VendorAIAssistant() {
           </div>
 
           {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-3">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/50 p-3">
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
             ))}

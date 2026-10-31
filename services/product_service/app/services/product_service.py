@@ -93,7 +93,13 @@ class ProductService:
         return ProductRepository.get_low_stock_active(db, ProductService.LOW_STOCK_THRESHOLD)
 
     @staticmethod
-    def update_product(db: Session, product_id: int, product_data: ProductUpdate) -> Product:
+    def update_product(
+        db: Session,
+        product_id: int,
+        product_data: ProductUpdate,
+        *,
+        reset_approval: bool = False,
+    ) -> Product:
         product = ProductRepository.get_by_id(db, product_id, include_inactive=True)
         if product is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
@@ -109,6 +115,9 @@ class ProductService:
 
         for field, value in update_data.items():
             setattr(product, field, value)
+
+        if reset_approval:
+            product.certification = "PENDING"
 
         return ProductRepository.update(db, product)
 

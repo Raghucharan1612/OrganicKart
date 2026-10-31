@@ -29,6 +29,33 @@ class ProductUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ProductImageUrlRequest(BaseModel):
+    """Body for POST /{product_id}/images/url — adds an external image URL."""
+    external_url: str = Field(..., min_length=1, max_length=2048, description="Must be an HTTP or HTTPS image URL.")
+    url_label: str | None = Field(default=None, max_length=200, description="Optional display label for this image.")
+
+
+class ProductImageResponse(BaseModel):
+    id: int
+    product_id: int
+    # "UPLOAD" for device-uploaded files, "URL" for external image URLs
+    image_type: str = "UPLOAD"
+    # Uploaded file fields (None for URL-type images)
+    filename: str | None = None
+    original_filename: str | None = None
+    mime_type: str | None = None
+    file_size: int | None = None
+    # URL-type fields (None for uploaded files)
+    external_url: str | None = None
+    url_label: str | None = None
+    is_primary: bool
+    created_at: datetime
+    # Resolved display URL (use this for <img src>)
+    url: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductResponse(BaseModel):
     id: int
     seller_id: int
@@ -41,6 +68,7 @@ class ProductResponse(BaseModel):
     unit: str
     certification: str | None = None
     image_url: str | None = None
+    images: list[ProductImageResponse] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime

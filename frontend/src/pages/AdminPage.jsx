@@ -7,6 +7,7 @@ import categoryService from "@/services/categoryService";
 import Spinner from "@/components/Spinner";
 import EmptyState from "@/components/EmptyState";
 import { getApiErrorMessage } from "@/utils/errorUtils";
+import ProductForm from "@/features/catalog/components/ProductForm";
 
 const CERTIFICATION_TABS = [
   { id: "PENDING", label: "Pending Queue" },
@@ -18,6 +19,7 @@ const CERTIFICATION_TABS = [
 export default function AdminPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
+  const canManageProduct = (product) => Number(product?.seller_id) === Number(user?.id);
 
   // Stats state
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
@@ -37,6 +39,8 @@ export default function AdminPage() {
 
   // Modal / Detail inspection state
   const [previewProduct, setPreviewProduct] = useState(null);
+  const [productFormTarget, setProductFormTarget] = useState(null); // "create" | product | null
+  const [isProductSaving, setIsProductSaving] = useState(false);
 
   // Fetch summary counts
   const loadCounts = useCallback(async () => {
@@ -147,6 +151,35 @@ export default function AdminPage() {
     }
   };
 
+  const saveAdminProduct = async (payload, pendingFiles = [], pendingPrimaryIndex = 0, pendingUrls = []) => {
+    setIsProductSaving(true);
+    try {
+      if (productFormTarget === "create") {
+        // The backend takes ownership from the verified admin JWT subject; no
+        // seller ID is accepted from the client. Admin products follow the
+        // same pending-review policy as vendor submissions.
+        const created = await productService.create(payload);
+        if (pendingFiles.length) {
+          const images = await productService.uploadImages(created.id, pendingFiles);
+          if (pendingPrimaryIndex > 0 && images[pendingPrimaryIndex]) {
+            await productService.setPrimaryImage(created.id, images[pendingPrimaryIndex].id);
+          }
+        }
+        for (const imageUrl of pendingUrls) await productService.addImageUrl(created.id, imageUrl);
+        toast.success("Product created and added to the review queue.");
+      } else {
+        await productService.update(productFormTarget.id, payload);
+        toast.success("Product updated.");
+      }
+      setProductFormTarget(null);
+      await Promise.all([loadProducts(), loadCounts()]);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not save product."));
+    } finally {
+      setIsProductSaving(false);
+    }
+  };
+
   const getCertificationBadge = (status) => {
     const norm = String(status || "PENDING").toUpperCase();
     if (norm === "APPROVED") {
@@ -171,7 +204,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6">
+    <div className="mx-auto w-full max-w-screen-2xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
       {/* Header Banner - Clean White & Organic Green */}
       <div className="bg-white border border-emerald-100/90 shadow-sm p-6 rounded-2xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -202,11 +235,18 @@ export default function AdminPage() {
             >
               📂 Manage Categories
             </Link>
+            <button
+              type="button"
+              onClick={() => setProductFormTarget("create")}
+              className="inline-flex items-center gap-1.5 border border-emerald-600 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 rounded-xl"
+            >
+              + Add Product
+            </button>
             <Link
               to="/products"
               className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm"
             >
-              🛍️ View Storefront
+              🛍️ View Store
             </Link>
           </div>
         </div>
@@ -411,6 +451,11 @@ export default function AdminPage() {
                         <span>Stock: <strong className="text-gray-700">{product.stock_quantity} {product.unit}</strong></span>
                         <span>•</span>
                         <span>Price: <strong className="text-emerald-700 font-bold">₹{Number(product.price).toFixed(2)}</strong></span>
+                        {!canManageProduct(product) && (
+                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                            Seller-owned · review only
+                          </span>
+                        )}
                       </div>
 
                       {product.description && (
@@ -428,6 +473,15 @@ export default function AdminPage() {
                     >
                       🔍 Inspect
                     </button>
+                    {canManageProduct(product) && (
+                      <button
+                        type="button"
+                        onClick={() => setProductFormTarget(product)}
+                        className="border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-semibold px-3 py-1.5 rounded-xl transition"
+                      >
+                        Edit
+                      </button>
+                    )}
 
                     {product.certification !== "APPROVED" && (
                       <button
@@ -457,6 +511,28 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {productFormTarget && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4 backdrop-blur-sm">
+          <div className="mx-auto my-6 w-full max-w-4xl rounded-2xl bg-gray-50 p-5 shadow-2xl sm:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-display text-xl font-bold text-gray-900">{productFormTarget === "create" ? "Add store product" : "Edit product"}</h2>
+                <p className="text-xs text-gray-500">Only products owned by your administrator account can be edited here. Certification decisions remain available for all submissions.</p>
+              </div>
+              <button type="button" onClick={() => setProductFormTarget(null)} className="text-xl font-bold text-gray-500 hover:text-gray-900">×</button>
+            </div>
+            <ProductForm
+              categories={categories.filter((category) => category.is_active)}
+              initialValues={productFormTarget === "create" ? null : productFormTarget}
+              onSubmit={saveAdminProduct}
+              onCancel={() => setProductFormTarget(null)}
+              isSaving={isProductSaving}
+              onImagesUpdated={() => Promise.all([loadProducts(), loadCounts()])}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Product Detail Preview Modal */}
       {previewProduct && (

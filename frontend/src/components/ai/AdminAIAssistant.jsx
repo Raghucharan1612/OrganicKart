@@ -34,6 +34,7 @@ export default function AdminAIAssistant() {
   const [messages, setMessages] = useState([ADMIN_GREETING]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const isAdmin = isAuthenticated && user?.role === "ADMIN";
 
   useEffect(() => {
@@ -42,8 +43,11 @@ export default function AdminAIAssistant() {
     return () => window.removeEventListener("open-admin-ai", handleOpen);
   }, []);
 
+  // Auto scroll to latest message — direct scrollTop avoids forced reflow
   useEffect(() => {
-    if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages, isLoading, isOpen]);
 
   if (!isAdmin) return null;
@@ -112,7 +116,7 @@ export default function AdminAIAssistant() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-slate-50/70 p-3">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/70 p-3">
             {messages.map((message) => <ChatMessage key={message.id} message={message} />)}
 
             {messages.length === 1 && (

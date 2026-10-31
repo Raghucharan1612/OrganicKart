@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" fill="none">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F0FDF4" />
+      <stop offset="100%" stop-color="#DCFCE7" />
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="160" y1="90" x2="240" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#16A34A" />
+      <stop offset="100%" stop-color="#15803D" />
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="400" height="300" rx="20" fill="url(#bgGradient)" stroke="#86EFAC" stroke-width="2" />
+
+  <!-- Subtle decorative ring -->
+  <circle cx="200" cy="130" r="60" fill="#FFFFFF" fill-opacity="0.8" stroke="#BBF7D0" stroke-width="2" stroke-dasharray="4 4" />
+
+  <!-- Organic Leaf Icon -->
+  <g transform="translate(165, 95) scale(1.4)">
+    <path d="M25 0 C10 8 0 25 0 40 C0 47 13 47 25 47 C37 47 50 47 50 40 C50 25 40 8 25 0 Z" fill="url(#leafGrad)" />
+    <!-- Leaf vein -->
+    <path d="M25 5 L25 43 M25 20 Q32 15 38 12 M25 28 Q18 23 12 20 M25 36 Q32 31 38 28" stroke="#DCFCE7" stroke-width="2" stroke-linecap="round" />
+  </g>
+
+  <!-- Text -->
+  <text x="200" y="220" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#166534">
+    OrganicKart
+  </text>
+  <text x="200" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#4ADE80">
+    100% Certified Organic Fresh Produce
+  </text>
+</svg>

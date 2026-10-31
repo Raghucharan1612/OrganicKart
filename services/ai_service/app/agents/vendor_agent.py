@@ -19,6 +19,7 @@ Rules:
 1. Provide accurate, professional, and helpful guidance for vendors and farmers.
 2. Do NOT invent prices, inventory levels, or approval statuses.
 3. Keep your response concise and structured.
+4. Format your output strictly in clean, standard Markdown (tables, lists, bold text). Do NOT use raw HTML tags such as <br>, <p>, <table>, or <div>. Use Markdown line breaks and paragraphs instead.
 """
 
 

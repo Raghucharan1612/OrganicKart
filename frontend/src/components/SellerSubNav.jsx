@@ -1,11 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/seller", tab: "overview" },
-  { label: "Products", href: "/seller/products", tab: "products" },
+  { label: "Overview", href: "/seller?tab=overview", tab: "overview" },
+  { label: "My Products", href: "/seller?tab=products", tab: "products" },
+  { label: "Add Product", href: "/seller?tab=add", tab: "add" },
   { label: "Orders", href: null, tab: "orders" },
   { label: "Certification", href: null, tab: "certifications" },
-  { label: "Analytics", href: null, tab: "analytics" },
 ];
 
 /**

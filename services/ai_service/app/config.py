@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "gpt-oss:20b"
     OLLAMA_TIMEOUT_SECONDS: int = 300
-    OLLAMA_NUM_PREDICT: int = 250
+    OLLAMA_NUM_PREDICT: int = 512
+    OLLAMA_KEEP_ALIVE: str = "60m"
+    OLLAMA_THINK: bool = False  # Disable reasoning/thinking tokens to preserve response budget
     MOCK_LLM: bool = False
 
     ORDER_SERVICE_URL: str = "http://localhost:8004"

@@ -300,6 +300,7 @@ export default function Navbar() {
             )}
 
             {/* Global Search Bar (Desktop/Tablet) */}
+
             {!isPartner && (
               <form onSubmit={handleSearchSubmit} className="flex-1 max-w-lg hidden md:flex items-center relative">
                 <div className="relative w-full">
@@ -389,7 +390,7 @@ export default function Navbar() {
                       to="/seller"
                       className="hidden lg:inline-flex px-3 py-1.5 rounded-xl bg-primary-100 text-primary-800 text-xs font-bold hover:bg-primary-200 transition"
                     >
-                      Seller
+                      Farmer / Vendor
                     </Link>
                   ) : null}
 

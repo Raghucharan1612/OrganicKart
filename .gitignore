@@ -59,4 +59,12 @@ build/
 .DS_Store
 Thumbs.db
 ehthumbs.db
-Desktop.ini
+Desktop.ini
+# Local database migration backups
+services/product_service/.migration-backups/
+
+# Runtime product image uploads
+services/product_service/uploads/
+
+# Generated AI vector store
+services/ai_service/vector_store.json
