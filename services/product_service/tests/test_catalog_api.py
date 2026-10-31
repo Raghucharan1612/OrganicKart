@@ -171,6 +171,60 @@ def test_update_product():
     assert data["stock_quantity"] == 12
 
 
+def test_product_mutations_require_the_verified_owner_but_admin_review_remains_separate():
+    category = client.post(
+        "/api/v1/categories/",
+        json={"name": "Ownership checks"},
+        headers=_admin_headers(),
+    ).json()
+    admin_headers = _admin_headers()
+    vendor_headers = {"Authorization": "Bearer " + _token("VENDOR", 310)}
+    other_vendor_headers = {"Authorization": "Bearer " + _token("VENDOR", 311)}
+
+    vendor_product = client.post(
+        "/api/v1/products/",
+        json={"category_id": category["id"], "name": "Vendor-owned crop", "price": "12.00", "stock_quantity": 4, "unit": "kg"},
+        headers=vendor_headers,
+    ).json()
+
+    # An administrator may inspect/review a vendor submission, but must not
+    # change or deactivate a listing that belongs to that vendor.
+    assert client.put(
+        f"/api/v1/products/{vendor_product['id']}",
+        json={"name": "Changed by admin"},
+        headers=admin_headers,
+    ).status_code == 403
+    assert client.delete(f"/api/v1/products/{vendor_product['id']}", headers=admin_headers).status_code == 403
+    approved = client.post(f"/api/v1/products/{vendor_product['id']}/approve", headers=admin_headers)
+    assert approved.status_code == 200
+    assert approved.json()["certification"] == "APPROVED"
+
+    # A vendor cannot mutate another vendor's listing.
+    assert client.put(
+        f"/api/v1/products/{vendor_product['id']}",
+        json={"name": "Changed by another vendor"},
+        headers=other_vendor_headers,
+    ).status_code == 403
+    assert client.delete(f"/api/v1/products/{vendor_product['id']}", headers=other_vendor_headers).status_code == 403
+
+    # Administrator-created products receive the JWT subject as seller_id and
+    # remain editable/deactivatable by that same administrator.
+    admin_product = client.post(
+        "/api/v1/products/",
+        json={"seller_id": 9999, "category_id": category["id"], "name": "Admin-owned crop", "price": "15.00", "stock_quantity": 6, "unit": "kg"},
+        headers=admin_headers,
+    ).json()
+    assert admin_product["seller_id"] == 1
+    updated = client.put(
+        f"/api/v1/products/{admin_product['id']}",
+        json={"name": "Updated admin crop"},
+        headers=admin_headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Updated admin crop"
+    assert client.delete(f"/api/v1/products/{admin_product['id']}", headers=admin_headers).status_code == 200
+
+
 def test_delete_product_soft_deletes():
     category_response = client.post("/api/v1/categories/", json={"name": "Bakery"}, headers=_admin_headers())
     category_id = category_response.json()["id"]
@@ -380,6 +434,9 @@ def test_product_catalog_filters_and_pagination():
     bad_range = client.get("/api/v1/products/", params={"min_price": 20, "max_price": 5})
     assert bad_range.status_code == 422
 
+    oversized_page = client.get("/api/v1/products/", params={"page_size": 101})
+    assert oversized_page.status_code == 422
+
 
 def test_vendor_can_list_own_products_and_admin_can_filter_pending_certifications():
     category_response = client.post("/api/v1/categories/", json={"name": "Farm Fresh"}, headers=_admin_headers())
@@ -518,7 +575,8 @@ def test_customer_catalog_only_exposes_active_approved_products():
     assert client.post(f"/api/v1/products/{rejected_id}/reject", headers=_admin_headers()).status_code == 200
     assert client.post(f"/api/v1/products/{approved_id}/approve", headers=_admin_headers()).status_code == 200
     assert client.post(f"/api/v1/products/{inactive_approved_id}/approve", headers=_admin_headers()).status_code == 200
-    assert client.delete(f"/api/v1/products/{inactive_approved_id}", headers=_admin_headers()).status_code == 200
+    vendor_headers = {"Authorization": "Bearer " + _token("VENDOR", 76)}
+    assert client.delete(f"/api/v1/products/{inactive_approved_id}", headers=vendor_headers).status_code == 200
 
     catalog = client.get("/api/v1/products/")
     assert catalog.status_code == 200

@@ -4,6 +4,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import RoleRoute from "@/components/RoleRoute";
 
 import HomePage from "@/pages/HomePage";
+import InformationPage from "@/pages/InformationPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
 import AdminPage from "@/pages/AdminPage";
 import AdminCategoriesPage from "@/pages/AdminCategoriesPage";
@@ -35,6 +36,7 @@ export default function AppRoutes() {
       <Route element={<MainLayout />}>
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/info/:topic" element={<InformationPage />} />
         <Route path="/products" element={<ProductListingPage />} />
         <Route path="/products/:id" element={<ProductDetailsPage />} />
         <Route path="/categories" element={<ProductListingPage />} />

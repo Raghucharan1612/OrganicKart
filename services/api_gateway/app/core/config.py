@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     ORDER_SERVICE_URL: str = "http://localhost:8004"
     DELIVERY_SERVICE_URL: str = "http://localhost:8005"
     NOTIFICATION_SERVICE_URL: str = "http://localhost:8006"
-    REQUEST_TIMEOUT_SECONDS: int = 300
+    REQUEST_TIMEOUT_SECONDS: int = 360
 
     model_config = SettingsConfigDict(
         env_file=".env",

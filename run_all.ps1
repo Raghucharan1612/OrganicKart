@@ -5,17 +5,10 @@ $PidFile = Join-Path $LogsDir "pids.txt"
 New-Item -Path $LogsDir -ItemType Directory -Force | Out-Null
 
 function Test-PortInUse {
-    param(
-        [int]$Port
-    )
-
+    param([int]$Port)
     try {
-        $connection = Get-NetTCPConnection `
-            -LocalPort $Port `
-            -State Listen `
-            -ErrorAction Stop
-
-        return ($null -ne $connection)
+        $null = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop
+        return $true
     }
     catch {
         return $false
@@ -47,146 +40,141 @@ function Start-ManagedProcess {
         return $null
     }
 
-    $command = "& '$Executable' $Arguments 2>&1 | Tee-Object -FilePath '$LogPath'"
+    # Use WMI/CIM Win32_Process to launch fully detached from the current job
+    # object so the child survives after this script exits.
+    $cmdLine = "`"$Executable`" $Arguments"
+    $createFlags = 0x00000008  # DETACHED_PROCESS
+    $startup = New-CimInstance -CimClass (Get-CimClass Win32_ProcessStartup) -Property @{
+        ShowWindow = 0   # SW_HIDE
+    } -ClientOnly
 
-    $process = Start-Process `
-        -FilePath "powershell.exe" `
-        -WorkingDirectory $WorkingDirectory `
-        -WindowStyle Hidden `
-        -PassThru `
-        -ArgumentList @(
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            $command
-        )
+    $result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+        CommandLine       = $cmdLine
+        CurrentDirectory  = $WorkingDirectory
+        ProcessStartupInformation = $startup
+    }
 
-    Write-Host "Started $Name (PID $($process.Id), Port $Port)"
+    if ($result.ReturnValue -ne 0) {
+        Write-Host "ERROR: Failed to start $Name (Win32 error $($result.ReturnValue))"
+        return $null
+    }
 
-    return $process.Id
+    $processId = $result.ProcessId
+    Write-Host "Started $Name (PID $processId, Port $Port)"
+
+    return $processId
 }
 
 $serviceDefinitions = @(
 
     @{
-        Name = "User Service"
-        Port = 8001
+        Name             = "User Service"
+        Port             = 8001
         WorkingDirectory = Join-Path $Root "services\user_service"
-        Executable = Join-Path $Root "services\user_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8001"
-        LogPath = Join-Path $LogsDir "user.log"
+        Executable       = Join-Path $Root "services\user_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8001"
+        LogPath          = Join-Path $LogsDir "user.log"
     },
 
     @{
-        Name = "AI Service"
-        Port = 8002
+        Name             = "AI Service"
+        Port             = 8002
         WorkingDirectory = Join-Path $Root "services\ai_service"
-        Executable = Join-Path $Root "services\product_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn app.main:app --host 127.0.0.1 --port 8002"
-        LogPath = Join-Path $LogsDir "ai.log"
+        Executable       = Join-Path $Root "services\ai_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn app.main:app --host 127.0.0.1 --port 8002"
+        LogPath          = Join-Path $LogsDir "ai.log"
     },
 
     @{
-        Name = "Product Service"
-        Port = 8003
+        Name             = "Product Service"
+        Port             = 8003
         WorkingDirectory = Join-Path $Root "services\product_service"
-        Executable = Join-Path $Root "services\product_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8003"
-        LogPath = Join-Path $LogsDir "product.log"
+        Executable       = Join-Path $Root "services\product_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8003"
+        LogPath          = Join-Path $LogsDir "product.log"
     },
 
     @{
-        Name = "Order Service"
-        Port = 8004
+        Name             = "Order Service"
+        Port             = 8004
         WorkingDirectory = Join-Path $Root "services\order_service"
-        Executable = Join-Path $Root "services\order_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8004"
-        LogPath = Join-Path $LogsDir "order.log"
+        Executable       = Join-Path $Root "services\order_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8004"
+        LogPath          = Join-Path $LogsDir "order.log"
     },
 
     @{
-        Name = "Delivery Service"
-        Port = 8005
+        Name             = "Delivery Service"
+        Port             = 8005
         WorkingDirectory = Join-Path $Root "services\delivery_service"
-        Executable = Join-Path $Root "services\delivery_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8005"
-        LogPath = Join-Path $LogsDir "delivery.log"
+        Executable       = Join-Path $Root "services\delivery_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8005"
+        LogPath          = Join-Path $LogsDir "delivery.log"
     },
 
     @{
-        Name = "Notification Service"
-        Port = 8006
+        Name             = "Notification Service"
+        Port             = 8006
         WorkingDirectory = Join-Path $Root "services\notification_service"
-        Executable = Join-Path $Root "services\notification_service\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8006"
-        LogPath = Join-Path $LogsDir "notification.log"
+        Executable       = Join-Path $Root "services\notification_service\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8006"
+        LogPath          = Join-Path $LogsDir "notification.log"
     },
 
     @{
-        Name = "API Gateway"
-        Port = 8000
+        Name             = "API Gateway"
+        Port             = 8000
         WorkingDirectory = Join-Path $Root "services\api_gateway"
-        Executable = Join-Path $Root "services\api_gateway\.venv\Scripts\python.exe"
-        Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8000"
-        LogPath = Join-Path $LogsDir "gateway.log"
-    },
-
-    @{
-        Name = "Frontend"
-        Port = 5173
-        WorkingDirectory = Join-Path $Root "frontend"
-        Executable = "npm.cmd"
-        Arguments = "run dev -- --host 127.0.0.1 --port 5173"
-        LogPath = Join-Path $LogsDir "frontend.log"
+        Executable       = Join-Path $Root "services\api_gateway\.venv\Scripts\python.exe"
+        Arguments        = "-m uvicorn main:app --host 127.0.0.1 --port 8000"
+        LogPath          = Join-Path $LogsDir "gateway.log"
     }
 )
+
 $startedPids = @()
 
 foreach ($service in $serviceDefinitions) {
 
-    if ($service.Name -eq "Frontend") {
-
-        if (Test-PortInUse -Port $service.Port) {
-            Write-Host "Port $($service.Port) is already in use - skipping Frontend"
-            continue
-        }
-
-        $frontendCommand = "npm run dev -- --host 127.0.0.1 --port 5173 2>&1 | Tee-Object -FilePath '$($service.LogPath)'"
-
-        $frontendProcess = Start-Process `
-            -FilePath "powershell.exe" `
-            -WorkingDirectory $service.WorkingDirectory `
-            -WindowStyle Hidden `
-            -PassThru `
-            -ArgumentList @(
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                $frontendCommand
-            )
-
-        Write-Host "Started Frontend (PID $($frontendProcess.Id), Port 5173)"
-        $startedPids += $frontendProcess.Id
-
-        continue
-    }
-
     $startedPid = Start-ManagedProcess `
-        -Name $service.Name `
-        -Port $service.Port `
+        -Name             $service.Name `
+        -Port             $service.Port `
         -WorkingDirectory $service.WorkingDirectory `
-        -Executable $service.Executable `
-        -Arguments $service.Arguments `
-        -LogPath $service.LogPath
+        -Executable       $service.Executable `
+        -Arguments        $service.Arguments `
+        -LogPath          $service.LogPath
 
     if ($null -ne $startedPid) {
         $startedPids += $startedPid
+    }
+}
+
+# ── Frontend (npm run dev) ──────────────────────────────────────────────────
+$frontendPort = 5173
+$frontendLog  = Join-Path $LogsDir "frontend.log"
+$frontendDir  = Join-Path $Root "frontend"
+
+if (Test-PortInUse -Port $frontendPort) {
+    Write-Host "Port $frontendPort is already in use - skipping Frontend"
+}
+else {
+    # npm.cmd is a batch file; we launch cmd.exe so it resolves correctly
+    $npmCmdObj = Get-Command npm.cmd -EA SilentlyContinue
+    $npmCmd    = if ($npmCmdObj) { $npmCmdObj.Source } else { "npm.cmd" }
+    $cmdLine  = "cmd.exe /c npm run dev -- --host 127.0.0.1 --port $frontendPort"
+    $startup  = New-CimInstance -CimClass (Get-CimClass Win32_ProcessStartup) -Property @{ ShowWindow = 0 } -ClientOnly
+
+    $result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+        CommandLine                = $cmdLine
+        CurrentDirectory           = $frontendDir
+        ProcessStartupInformation  = $startup
+    }
+
+    if ($result.ReturnValue -eq 0) {
+        Write-Host "Started Frontend (PID $($result.ProcessId), Port $frontendPort)"
+        $startedPids += $result.ProcessId
+    }
+    else {
+        Write-Host "ERROR: Failed to start Frontend (Win32 error $($result.ReturnValue))"
     }
 }
 

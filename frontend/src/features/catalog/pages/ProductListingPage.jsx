@@ -15,7 +15,7 @@ const SORT_OPTIONS = [
   { value: "name_asc", label: "Name: A to Z" },
 ];
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
 
 const normalizeResult = (data) => {
   if (Array.isArray(data)) {
@@ -42,6 +42,7 @@ export default function ProductListingPage() {
   const page = Number(searchParams.get("page") || 1);
 
   const [searchInput, setSearchInput] = useState(search);
+  const [priceInputs, setPriceInputs] = useState({ min: minPrice, max: maxPrice });
   const [categories, setCategories] = useState([]);
   const [result, setResult] = useState({ items: [], total: 0, pages: 1, page: 1, page_size: PAGE_SIZE });
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +103,10 @@ export default function ProductListingPage() {
     };
   }, [search, categoryId, sortBy, minPrice, maxPrice, certification, page]);
 
+  useEffect(() => {
+    setPriceInputs({ min: minPrice, max: maxPrice });
+  }, [minPrice, maxPrice]);
+
   const categoryMap = useMemo(() => Object.fromEntries(categories.map((cat) => [String(cat.id), cat.name])), [categories]);
 
   const updateParams = (updates) => {
@@ -122,6 +127,11 @@ export default function ProductListingPage() {
     updateParams({ search: searchInput });
   };
 
+  const applyPriceFilters = () => {
+    if (priceInputs.min === minPrice && priceInputs.max === maxPrice) return;
+    updateParams({ min_price: priceInputs.min, max_price: priceInputs.max });
+  };
+
   const clearAllFilters = () => {
     setSearchInput("");
     setSearchParams(new URLSearchParams());
@@ -129,7 +139,7 @@ export default function ProductListingPage() {
 
   const activeFilterCount = [categoryId, minPrice, maxPrice, certification, search].filter(Boolean).length;
 
-  const FilterSidebarContent = () => (
+  const renderFilterSidebarContent = () => (
     <div className="space-y-6">
       {/* Category List */}
       <div>
@@ -173,16 +183,30 @@ export default function ProductListingPage() {
           <input
             type="number"
             min="0"
-            value={minPrice}
-            onChange={(e) => updateParams({ min_price: e.target.value })}
+            value={priceInputs.min}
+            onChange={(e) => setPriceInputs((current) => ({ ...current, min: e.target.value }))}
+            onBlur={applyPriceFilters}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyPriceFilters();
+              }
+            }}
             placeholder="Min ₹"
             className="input-field text-xs"
           />
           <input
             type="number"
             min="0"
-            value={maxPrice}
-            onChange={(e) => updateParams({ max_price: e.target.value })}
+            value={priceInputs.max}
+            onChange={(e) => setPriceInputs((current) => ({ ...current, max: e.target.value }))}
+            onBlur={applyPriceFilters}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyPriceFilters();
+              }
+            }}
             placeholder="Max ₹"
             className="input-field text-xs"
           />
@@ -217,9 +241,9 @@ export default function ProductListingPage() {
   );
 
   return (
-    <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-6">
+    <div className="mx-auto w-full max-w-screen-2xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
       {/* Header & Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 rounded-2xl border border-primary-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <h1 className="font-display text-3xl font-extrabold text-primary-900">Shop Organic</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -291,7 +315,7 @@ export default function ProductListingPage() {
             </select>
           </div>
 
-          <FilterSidebarContent />
+          {renderFilterSidebarContent()}
         </aside>
 
         {/* MOBILE FILTER MODAL/SHEET */}
@@ -308,7 +332,7 @@ export default function ProductListingPage() {
                   ✕
                 </button>
               </div>
-              <FilterSidebarContent />
+              {renderFilterSidebarContent()}
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}

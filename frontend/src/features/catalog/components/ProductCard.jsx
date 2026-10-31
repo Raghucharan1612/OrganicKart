@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import orderService from "@/services/orderService";
 import toast from "react-hot-toast";
-import { getApiErrorMessage } from "@/utils/errorUtils";
+import { getProductImageUrl, FALLBACK_PRODUCT_IMAGE } from "@/utils/imageUtils";
 
 const CATEGORY_EMOJI = {
   Fruits: "🍎",
@@ -26,6 +26,10 @@ export default function ProductCard({ product }) {
   const { isAuthenticated } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [product.image_url]);
 
   const categoryName = product.category?.name || product.category_name || "Organic";
   const emoji = CATEGORY_EMOJI[categoryName] || "🌿";
@@ -85,19 +89,24 @@ export default function ProductCard({ product }) {
       </div>
 
       {/* Image Area */}
-      <div className="relative mb-3 flex h-40 w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50/80 group-hover:bg-primary-50/40 transition-colors">
+      <div className="relative mb-3 flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50/80 group-hover:bg-primary-50/40 transition-colors">
         {product.image_url && !imageError ? (
           <img
-            src={product.image_url}
+            src={getProductImageUrl(product.image_url)}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
+            width="320"
+            height="144"
             onError={() => setImageError(true)}
             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center text-4xl">
-            <span>{emoji}</span>
-            <span className="mt-1 text-[11px] font-medium text-gray-400">100% Organic</span>
-          </div>
+          <img
+            src={FALLBACK_PRODUCT_IMAGE}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
         )}
 
         {outOfStock && (

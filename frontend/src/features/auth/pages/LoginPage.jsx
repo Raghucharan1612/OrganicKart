@@ -63,7 +63,7 @@ export default function LoginPage() {
             name="email"
             type="email"
             label={t("email")}
-            placeholder="you@example.com"
+            placeholder="you@gmail.com"
             value={form.email}
             onChange={handleChange}
             error={fieldErrors.email}
@@ -87,7 +87,7 @@ export default function LoginPage() {
               aria-label={showPassword ? t("hidePasswords") : t("showPasswords")}
               title={showPassword ? t("hidePasswords") : t("showPasswords")}
               aria-pressed={showPassword}
-              className="absolute right-3 top-[2.55rem] flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="absolute right-3 -translate-y-1/3 top-[2.55rem] flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
                 {showPassword ? (

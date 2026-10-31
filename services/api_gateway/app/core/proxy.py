@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from app.core.config import settings
 
@@ -65,14 +65,13 @@ async def _forward_request(request: Request, service_name: str, path: str) -> An
         )
 
     try:
-        async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT_SECONDS) as client:
-            response = await client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=body if body else None,
-                params=request.query_params,
-            )
+        response = await request.app.state.http_client.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=body if body else None,
+            params=request.query_params,
+        )
 
         if service_name == "ai":
             logger.warning(
@@ -95,6 +94,19 @@ async def _forward_request(request: Request, service_name: str, path: str) -> An
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Upstream service unavailable for {service_name}: {diagnostic}",
         ) from exc
+
+    headers_dict = getattr(response, "headers", {})
+    content_type = headers_dict.get("content-type", "") if hasattr(headers_dict, "get") else ""
+    if response.status_code < 400 and (content_type.startswith("image/") or "application/octet-stream" in content_type):
+        res_headers = {}
+        for header_name in ("content-type", "content-length", "cache-control", "etag", "last-modified"):
+            if header_name in headers_dict:
+                res_headers[header_name] = headers_dict[header_name]
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=res_headers,
+        )
 
     try:
         payload = response.json()

@@ -15,6 +15,7 @@ Answer only from the supplied OrganicKart admin knowledge context.
 Use supplied live catalog and aggregate order information only when available.
 Do not expose customer personal information.
 Keep answers concise and professional.
+Format output strictly in clean, standard Markdown (tables, lists, bold text). Do not use raw HTML tags such as <br>, <p>, <table>, or <div>.
 """
 
 ADMIN_PRODUCT_SOURCE = [{"document": "Product Service Admin Catalog API", "title": "Admin Product Catalog", "score": 1.0}]

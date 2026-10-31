@@ -77,7 +77,7 @@ export default function RegisterPage() {
             id="full_name"
             name="full_name"
             label={t("fullName")}
-            placeholder="Jane Doe"
+            placeholder="Raghu Charan R A"
             value={form.full_name}
             onChange={handleChange}
             error={fieldErrors.full_name}
@@ -88,7 +88,7 @@ export default function RegisterPage() {
             name="email"
             type="email"
             label={t("email")}
-            placeholder="you@example.com"
+            placeholder="you@gmail.com"
             value={form.email}
             onChange={handleChange}
             error={fieldErrors.email}

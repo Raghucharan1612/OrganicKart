@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.products import Product
 
@@ -40,7 +40,13 @@ class ProductRepository:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Product], int]:
-        query = db.query(Product)
+        # Product responses expose category data. Load all categories for the
+        # current page in one additional query instead of lazy-loading one per
+        # distinct category while the response is serialized.
+        query = db.query(Product).options(
+            selectinload(Product.category),
+            selectinload(Product.images),
+        )
         if not include_inactive:
             query = query.filter(Product.is_active.is_(True))
 
@@ -50,11 +56,13 @@ class ProductRepository:
                 words = [w for w in keyword.split() if w]
                 word_filters = []
                 for w in words:
-                    pattern = f"%{w}%"
+                    cand = [f"%{w}%"]
+                    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+                        cand.append(f"%{w[:-1]}%")
                     word_filters.append(
                         or_(
-                            Product.name.ilike(pattern),
-                            Product.description.ilike(pattern),
+                            *(Product.name.ilike(p) for p in cand),
+                            *(Product.description.ilike(p) for p in cand),
                         )
                     )
                 if word_filters:
@@ -97,7 +105,11 @@ class ProductRepository:
         include_inactive: bool = False,
         certification: str | None = None,
     ) -> Product | None:
-        query = db.query(Product).filter(Product.id == product_id)
+        query = (
+            db.query(Product)
+            .options(selectinload(Product.category), selectinload(Product.images))
+            .filter(Product.id == product_id)
+        )
         if not include_inactive:
             query = query.filter(Product.is_active.is_(True))
         if certification is not None:

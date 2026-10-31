@@ -30,7 +30,7 @@ class AuthService:
         )
         user = self.users.create(user)
         try:
-            httpx.post(
+            h5.post(
                 f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
                 json={
                     "user_id": user.id,

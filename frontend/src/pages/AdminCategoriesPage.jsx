@@ -6,6 +6,7 @@ import Button from "@/components/Button";
 import Spinner from "@/components/Spinner";
 import { validateRequired } from "@/utils/validators";
 import { getApiErrorMessage } from "@/utils/errorUtils";
+import { validateImageFile } from "@/utils/imageUtils";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -13,6 +14,9 @@ export default function AdminCategoriesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formMode, setFormMode] = useState(null); // null | "create" | category.id
   const [form, setForm] = useState({ name: "", description: "", image_url: "" });
+  const [imageSource, setImageSource] = useState("url");
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [deactivateCategory, setDeactivateCategory] = useState(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
@@ -36,12 +40,18 @@ export default function AdminCategoriesPage() {
   const startCreate = () => {
     setForm({ name: "", description: "", image_url: "" });
     setFieldError("");
+    setImageSource("url");
+    setImageFile(null);
+    setPreviewUrl("");
     setFormMode("create");
   };
 
   const startEdit = (category) => {
     setForm({ name: category.name, description: category.description || "", image_url: category.image_url || "" });
     setFieldError("");
+    setImageSource(category.image_source === "UPLOAD" ? "upload" : "url");
+    setImageFile(null);
+    setPreviewUrl(category.image_url || "");
     setFormMode(category.id);
   };
 
@@ -53,12 +63,17 @@ export default function AdminCategoriesPage() {
 
     setIsSaving(true);
     try {
+      const categoryPayload = { ...form, image_url: imageSource === "url" ? (form.image_url || null) : null };
+      let saved;
       if (formMode === "create") {
-        await categoryService.create(form);
+        saved = await categoryService.create(categoryPayload);
         toast.success("Category created.");
       } else {
-        await categoryService.update(formMode, form);
+        saved = await categoryService.update(formMode, categoryPayload);
         toast.success("Category updated.");
+      }
+      if (imageSource === "upload" && imageFile) {
+        await categoryService.uploadImage(saved.id, imageFile);
       }
       setFormMode(null);
       await loadCategories();
@@ -85,8 +100,8 @@ export default function AdminCategoriesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full max-w-screen-2xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 rounded-2xl border border-primary-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-primary-900">Manage Categories</h1>
           <p className="mt-1 text-sm text-gray-500">Admin-only: the taxonomy every seller lists products under.</p>
@@ -95,7 +110,7 @@ export default function AdminCategoriesPage() {
       </div>
 
       {formMode !== null && (
-        <form onSubmit={handleSubmit} className="card space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="font-display text-lg font-semibold text-primary-900">
             {formMode === "create" ? "New category" : "Edit category"}
           </h2>
@@ -119,24 +134,46 @@ export default function AdminCategoriesPage() {
             />
           </div>
           <div>
-            <label htmlFor="cat-image-url" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Image URL
-            </label>
-            <input
-              id="cat-image-url"
-              type="url"
-              placeholder="https://images.unsplash.com/..."
-              value={form.image_url}
-              onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
-              className="input-field"
-            />
-            {form.image_url && (
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Category image</label>
+            <div className="mb-2 flex gap-4 text-sm text-gray-600">
+              <label><input type="radio" checked={imageSource === "url"} onChange={() => setImageSource("url")} /> External URL</label>
+              <label><input type="radio" checked={imageSource === "upload"} onChange={() => setImageSource("upload")} /> Upload file</label>
+            </div>
+            {imageSource === "url" ? (
+              <input
+                id="cat-image-url"
+                type="url"
+                placeholder="https://images.example.com/category.jpg"
+                value={form.image_url}
+                onChange={(e) => { setForm((f) => ({ ...f, image_url: e.target.value })); setPreviewUrl(e.target.value); }}
+                className="input-field"
+              />
+            ) : (
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                className="input-field"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  const error = file && validateImageFile(file);
+                  if (error) { setFieldError(error); return; }
+                  setImageFile(file);
+                  setPreviewUrl(file ? URL.createObjectURL(file) : "");
+                }}
+              />
+            )}
+            {previewUrl && (
               <img
-                src={form.image_url}
+                src={previewUrl}
                 alt="Preview"
                 className="mt-2 h-16 w-16 rounded-xl object-cover border border-gray-200"
                 onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
+            )}
+            {formMode !== "create" && previewUrl && (
+              <button type="button" className="mt-2 text-xs font-semibold text-red-600 hover:underline" onClick={async () => {
+                try { await categoryService.removeImage(formMode); setForm((f) => ({ ...f, image_url: "" })); setImageFile(null); setPreviewUrl(""); toast.success("Category image removed."); } catch (err) { toast.error(getApiErrorMessage(err, "Could not remove image.")); }
+              }}>Remove current image</button>
             )}
           </div>
           <div className="flex gap-3">
@@ -153,17 +190,26 @@ export default function AdminCategoriesPage() {
       {isLoading ? (
         <Spinner label="Loading categories…" />
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {categories.map((c) => (
-            <div key={c.id} className="card flex items-center justify-between py-3">
+            <div key={c.id} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-primary-200 hover:shadow-md">
               <div className="flex items-center gap-3">
-                {c.image_url && (
+                {c.image_url ? (
                   <img
                     src={c.image_url}
                     alt={c.name}
+                    loading="lazy"
+                    decoding="async"
+                    width="40"
+                    height="40"
                     className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                      event.currentTarget.nextElementSibling?.classList.remove("hidden");
+                    }}
                   />
-                )}
+                ) : null}
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-primary-50 text-lg ${c.image_url ? "hidden" : ""}`}>🌿</div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-primary-900">{c.name}</span>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import productService from "@/services/productService";
-import categoryService from "@/services/categoryService";
 import orderService from "@/services/orderService";
 import Spinner from "@/components/Spinner";
 import { useAuth } from "@/hooks/useAuth";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/utils/errorUtils";
+
+import { getProductImageUrl, FALLBACK_PRODUCT_IMAGE } from "@/utils/imageUtils";
 
 const CATEGORY_EMOJI = {
   Fruits: "🍎",
@@ -30,23 +31,23 @@ export default function ProductDetailsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [imageError, setImageError] = useState(false);
+  const [activeImage, setActiveImage] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError("");
+    setImageError(false);
 
     productService
       .getById(id)
       .then((data) => {
         if (cancelled) return;
         setProduct(data);
-        if (data?.category_id) {
-          categoryService
-            .get(data.category_id)
-            .then((category) => setCategoryName(category?.name || "Organic"))
-            .catch(() => setCategoryName("Organic"));
-        }
+        setCategoryName(data?.category?.name || "Organic");
+        const defaultImg = data?.image_url || data?.images?.[0]?.url || null;
+        setActiveImage(defaultImg);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -110,11 +111,58 @@ export default function ProductDetailsPage() {
       <Link to="/products" className="inline-flex items-center text-sm font-medium text-primary-700 hover:underline">← Back to catalog</Link>
 
       <div className="grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-2">
-        <div className="flex h-72 items-center justify-center overflow-hidden rounded-[28px] bg-primary-50 text-8xl shadow-sm md:h-full">
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
-          ) : (
-            <span>{emoji}</span>
+        <div className="flex flex-col gap-3">
+          <div className="flex h-72 items-center justify-center overflow-hidden rounded-[28px] bg-primary-50 shadow-sm md:h-96">
+            {activeImage && !imageError ? (
+              <img
+                src={getProductImageUrl(activeImage)}
+                alt={product.name}
+                decoding="async"
+                width="720"
+                height="576"
+                onError={() => setImageError(true)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <img
+                src={FALLBACK_PRODUCT_IMAGE}
+                alt={product.name}
+                className="h-full w-full object-cover"
+              />
+            )}
+          </div>
+
+          {/* Multi-image thumbnail gallery */}
+          {product.images && product.images.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-hide">
+              {product.images.map((img) => {
+                const isCurrent = activeImage === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveImage(img.url);
+                      setImageError(false);
+                    }}
+                    className={`h-16 w-16 rounded-xl overflow-hidden border-2 shrink-0 transition ${
+                      isCurrent
+                        ? "border-primary-600 ring-2 ring-primary-500/20"
+                        : "border-slate-200 hover:border-primary-400 opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <img
+                      src={getProductImageUrl(img.url)}
+                      alt={img.original_filename}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 

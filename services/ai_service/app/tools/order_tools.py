@@ -96,8 +96,10 @@ class OrderServiceClient:
 
     async def get_recent_orders(self, token: str, user_id: int) -> dict[str, Any]:
         """
-        Fetch recent orders for the authenticated customer.
+        Fetch all orders for the authenticated customer (returned in newest-first order).
         Endpoint: GET /api/v1/orders
+        Note: The Order Service returns the customer's full order set without limit or
+        pagination restrictions, allowing the caller to filter across complete history.
         """
         if not token:
             return {
@@ -204,6 +206,13 @@ class OrderServiceClient:
                 "success": False,
                 "error": "unauthorized",
                 "detail": "Authentication token is missing.",
+            }
+
+        if not isinstance(order_id, int) or order_id <= 0:
+            return {
+                "success": False,
+                "error": "invalid_order_id",
+                "detail": f"Order ID {order_id} is invalid. Please provide a valid numeric order ID.",
             }
 
         url = f"{self.base_url}/api/v1/orders/{order_id}"

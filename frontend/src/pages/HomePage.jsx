@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import productService from "@/services/productService";
 import categoryService from "@/services/categoryService";
+import productService from "@/services/productService";
 import Spinner from "@/components/Spinner";
 import ProductCard from "@/features/catalog/components/ProductCard";
 
@@ -62,29 +62,125 @@ const PROMO_CARDS = [
   },
 ];
 
+const BEST_SELLER_ROW_COUNT = 5;
+const PRODUCTS_PER_ROW = 6;
+
+const getCatalogItems = (data) =>
+  Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+
+const splitBestSellerRows = (products) =>
+  Array.from({ length: BEST_SELLER_ROW_COUNT }, (_, rowIndex) =>
+    products.slice(rowIndex * PRODUCTS_PER_ROW, (rowIndex + 1) * PRODUCTS_PER_ROW)
+  );
+
+function CategoryCardItem({ category }) {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <Link
+      to={`/products?category_id=${category.id}`}
+      className="group flex flex-col items-center justify-between rounded-2xl border border-gray-100 bg-primary-50/20 p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-300 hover:bg-white hover:shadow-md shrink-0 w-[calc((100%-2*0.75rem)/3)] sm:w-[calc((100%-3*0.75rem)/4)] md:w-[calc((100%-4*1rem)/5)] lg:w-[calc((100%-5*1rem)/6)] xl:w-[calc((100%-6*1rem)/7)] h-[174px]"
+    >
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-xs group-hover:scale-105 transition-transform">
+        {category.image_url && !imageError ? (
+          <img
+            src={category.image_url}
+            alt={category.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+            width="64"
+            height="64"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <span className="text-3xl">{CATEGORY_ICON[category.name] || "🌿"}</span>
+        )}
+      </div>
+      <div className="flex h-10 w-full items-center justify-center px-1">
+        <p className="text-xs font-bold text-gray-800 group-hover:text-primary-700 transition line-clamp-2 leading-tight text-center">
+          {category.name}
+        </p>
+      </div>
+      <span className="text-[10px] font-medium text-gray-400 shrink-0">100% Organic</span>
+    </Link>
+  );
+}
+
 export default function HomePage() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
-  const [featured, setFeatured] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [bestSellerRows, setBestSellerRows] = useState(() => splitBestSellerRows([]));
+  const [isBestSellersLoading, setIsBestSellersLoading] = useState(true);
+  const [bestSellersError, setBestSellersError] = useState("");
+  const categoryScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const updateCategoryScrollState = () => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 6);
+  };
+
+  useEffect(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    updateCategoryScrollState();
+    el.addEventListener("scroll", updateCategoryScrollState, { passive: true });
+    window.addEventListener("resize", updateCategoryScrollState);
+    return () => {
+      el.removeEventListener("scroll", updateCategoryScrollState);
+      window.removeEventListener("resize", updateCategoryScrollState);
+    };
+  }, [categories]);
+
+  const scrollCategories = (dir) => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    const cardEl = el.querySelector("a");
+    const cardWidth = cardEl ? cardEl.offsetWidth + 16 : 220;
+    el.scrollBy({ left: dir * cardWidth * 3, behavior: "smooth" });
+  };
+
+  const loadBestSellers = () => {
+    setIsBestSellersLoading(true);
+    setBestSellersError("");
+
+    productService
+      .list({ page: 1, page_size: 100, sort_by: "created_at", sort_order: "desc" })
+      .then((catalogData) => {
+        const seenProductIds = new Set();
+        const visibleProducts = getCatalogItems(catalogData)
+          .filter((product) => product.is_active !== false && product.certification === "APPROVED")
+          .filter((product) => {
+            if (seenProductIds.has(product.id)) return false;
+            seenProductIds.add(product.id);
+            return true;
+          })
+          .slice(0, BEST_SELLER_ROW_COUNT * PRODUCTS_PER_ROW);
+        setBestSellerRows(splitBestSellerRows(visibleProducts));
+      })
+      .catch(() => {
+        setBestSellersError("Unable to load products right now.");
+        setBestSellerRows(splitBestSellerRows([]));
+      })
+      .finally(() => setIsBestSellersLoading(false));
+  };
 
   useEffect(() => {
     let active = true;
-
-    Promise.all([
-      categoryService.list().catch(() => []),
-      productService.list({ certification: "APPROVED", page: 1, page_size: 8, sort_by: "created_at", sort_order: "desc" }).catch(() => ({ items: [] })),
-    ])
-      .then(([categoriesData, productsData]) => {
-        if (!active) return;
-        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-        const items = Array.isArray(productsData?.items) ? productsData.items : Array.isArray(productsData) ? productsData : [];
-        setFeatured(items);
+    categoryService.list()
+      .then((categoryData) => {
+        if (active) setCategories(Array.isArray(categoryData) ? categoryData : []);
       })
-      .finally(() => {
-        if (active) setIsLoading(false);
+      .catch(() => {
+        if (active) setCategories([]);
       });
+    loadBestSellers();
 
     return () => {
       active = false;
@@ -95,7 +191,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-cream flex flex-col">
       {/* Category Navigation Bar (Horizontally Scrollable) */}
       <div className="border-b border-gray-200/80 bg-white sticky top-[105px] z-30 shadow-xs">
-        <div className="w-full px-4 py-2.5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
+        <div className="mx-auto w-full max-w-[1440px] px-4 py-2.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1">
             <Link
               to="/products"
@@ -118,7 +214,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 space-y-10 flex-1">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col space-y-10 px-4 py-6 sm:px-6 lg:px-8">
         {/* HERO SECTION */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary-950 via-primary-900 to-primary-950 p-6 sm:p-10 text-white shadow-xl">
           {/* Subtle background glow circles */}
@@ -243,72 +339,88 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* SHOP BY CATEGORY (CONSISTENT SIZED CARDS) */}
+        {/* SHOP BY CATEGORY — responsive horizontal carousel with arrows */}
         <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-xs">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <span className="text-xs font-extrabold uppercase tracking-widest text-primary-600">Categories</span>
               <h2 className="mt-1 font-display text-2xl font-bold text-gray-900">Explore Fresh Categories</h2>
             </div>
-            <Link to="/products" className="text-sm font-bold text-primary-700 hover:text-primary-900 transition">
-              See All ({categories.length}) →
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => scrollCategories(-1)}
+                disabled={!canScrollLeft}
+                aria-label="Previous categories"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-xs transition hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:text-gray-600"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollCategories(1)}
+                disabled={!canScrollRight}
+                aria-label="Next categories"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-xs transition hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:text-gray-600"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              <Link to="/products" className="ml-1 text-sm font-bold text-primary-700 hover:text-primary-900 transition flex items-center gap-1">
+                <span>See All ({categories.length})</span>
+                <span>→</span>
+              </Link>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 items-stretch">
+          <div
+            ref={categoryScrollRef}
+            className="flex gap-3 sm:gap-3 md:gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-1"
+          >
             {categories.map((category) => (
-              <Link
-                key={category.id}
-                to={`/products?category_id=${category.id}`}
-                className="group flex flex-col items-center justify-between h-full rounded-2xl border border-gray-100 bg-primary-50/30 p-4 text-center transition-all duration-200 hover:border-primary-300 hover:bg-white hover:shadow-md"
-              >
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-xs group-hover:scale-105 transition-transform">
-                  {category.image_url ? (
-                    <img
-                      src={category.image_url}
-                      alt={category.name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="text-3xl">{CATEGORY_ICON[category.name] || "🌿"}</span>
-                  )}
-                </div>
-                <div className="mt-3 flex flex-col items-center justify-center flex-1 w-full min-h-[40px]">
-                  <p className="text-xs font-bold text-gray-800 group-hover:text-primary-700 transition line-clamp-2 leading-tight">
-                    {category.name}
-                  </p>
-                </div>
-                <span className="mt-1 text-[10px] font-medium text-gray-400 shrink-0">100% Organic</span>
-              </Link>
+              <CategoryCardItem key={category.id} category={category} />
             ))}
           </div>
         </section>
 
-        {/* BEST SELLERS / POPULAR PRODUCTS */}
+        {/* BEST SELLERS */}
         <section className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <span className="text-xs font-extrabold uppercase tracking-widest text-primary-600">Fresh Harvest</span>
-              <h2 className="mt-1 font-display text-2xl font-bold text-gray-900">Best Sellers Today</h2>
+              <span className="text-xs font-extrabold uppercase tracking-widest text-primary-600">Fresh picks</span>
+              <h2 className="mt-1 font-display text-2xl font-bold text-gray-900">Best Sellers</h2>
             </div>
-            <Link to="/products" className="text-sm font-bold text-primary-700 hover:text-primary-900 transition">
-              View Catalog →
+            <Link to="/products" className="shrink-0 text-sm font-bold text-primary-700 transition hover:text-primary-900">
+              View Catalog <span aria-hidden="true">→</span>
             </Link>
           </div>
 
-          {isLoading ? (
-            <div className="card py-12 text-center">
-              <Spinner label="Loading certified organic products…" />
+          {isBestSellersLoading ? (
+            <div className="rounded-2xl border border-gray-100 bg-white py-12 shadow-xs">
+              <Spinner label="Loading products…" />
             </div>
-          ) : featured.length === 0 ? (
-            <div className="card text-center py-10 text-gray-500">
-              <p>No products available right now. Check back soon!</p>
+          ) : bestSellersError ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-red-600">{bestSellersError}</p>
+              <button
+                type="button"
+                onClick={loadBestSellers}
+                className="mt-3 rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-primary-700"
+              >
+                Retry
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-              {featured.map((product) => (
-                <ProductCard key={product.id} product={product} />
+            <div className="space-y-5">
+              {bestSellerRows.map((products, rowIndex) => (
+                <div key={rowIndex} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 lg:gap-4">
+                  {products.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
               ))}
             </div>
           )}
@@ -361,93 +473,6 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* FULL FOOTER */}
-      <footer className="mt-16 border-t border-gray-200 bg-white text-gray-700">
-        <div className="w-full px-4 py-12 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
-            {/* Column 1: Brand */}
-            <div className="lg:col-span-2 space-y-4">
-              <Link to="/" className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-2xl bg-gradient-to-br from-primary-600 to-emerald-800 flex items-center justify-center text-white text-lg font-bold shadow-md">
-                  🌿
-                </div>
-                <span className="font-display text-xl font-bold text-primary-900">OrganicKart</span>
-              </Link>
-              <p className="text-xs text-gray-500 max-w-sm leading-relaxed">
-                India's premier quick-commerce organic marketplace. Delivering farm-fresh certified organic vegetables, fruits, dairy, and daily essentials straight to your kitchen in 10 minutes.
-              </p>
-              <div className="flex items-center gap-3 pt-2 text-lg text-primary-700">
-                <span className="cursor-pointer hover:scale-110 transition">🌐</span>
-                <span className="cursor-pointer hover:scale-110 transition">🐦</span>
-                <span className="cursor-pointer hover:scale-110 transition">📷</span>
-                <span className="cursor-pointer hover:scale-110 transition">💼</span>
-              </div>
-            </div>
-
-            {/* Column 2: Shop */}
-            <div>
-              <h4 className="font-display text-sm font-bold text-gray-900 uppercase tracking-wider">Shop</h4>
-              <ul className="mt-3 space-y-2 text-xs">
-                <li><Link to="/products" className="hover:text-primary-700 transition">Fruits & Vegetables</Link></li>
-                <li><Link to="/products" className="hover:text-primary-700 transition">Dairy & A2 Milk</Link></li>
-                <li><Link to="/products" className="hover:text-primary-700 transition">Organic Staples</Link></li>
-                <li><Link to="/products" className="hover:text-primary-700 transition">Cold Pressed Oils</Link></li>
-                <li><Link to="/products" className="hover:text-primary-700 transition">Best Sellers</Link></li>
-              </ul>
-            </div>
-
-            {/* Column 3: Company */}
-            <div>
-              <h4 className="font-display text-sm font-bold text-gray-900 uppercase tracking-wider">Company</h4>
-              <ul className="mt-3 space-y-2 text-xs">
-                <li><a href="#" className="hover:text-primary-700 transition">About Us</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Careers</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Organic Farmers</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Press & News</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Contact Us</a></li>
-              </ul>
-            </div>
-
-            {/* Column 4: Help */}
-            <div>
-              <h4 className="font-display text-sm font-bold text-gray-900 uppercase tracking-wider">Help & Support</h4>
-              <ul className="mt-3 space-y-2 text-xs">
-                <li><a href="#" className="hover:text-primary-700 transition">FAQs</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Shipping Policy</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Returns & Refund</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Terms & Privacy</a></li>
-                <li><a href="#" className="hover:text-primary-700 transition">Customer Care</a></li>
-              </ul>
-            </div>
-          </div>
-
-          {/* App download bar */}
-          <div className="mt-10 rounded-2xl bg-primary-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-4 border border-primary-100">
-            <div>
-              <h4 className="font-display text-base font-bold text-primary-900">Download OrganicKart App</h4>
-              <p className="text-xs text-gray-600 mt-0.5">Get 20% cashback on your first app order</p>
-            </div>
-            <div className="flex gap-3">
-              <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-gray-800 transition">
-                <span>📱</span> App Store
-              </button>
-              <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-gray-800 transition">
-                <span>🤖</span> Google Play
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom Bar */}
-          <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
-            <p>© 2026 OrganicKart Technologies Ltd. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <span>🇮🇳 India</span>
-              <span>English</span>
-              <span>100% Organic Certified</span>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
